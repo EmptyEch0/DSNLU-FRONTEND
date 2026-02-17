@@ -9,11 +9,13 @@ import { NoticesSection } from "@/components/sections/NoticesSection";
 import { ResearchSection } from "@/components/sections/ResearchSection";
 import { GallerySection } from "@/components/sections/GallerySection";
 import { CampusSection } from "@/components/sections/CampusSection";
+import { NotificationTicker } from "@/components/common/NotificationTicker";
 
 const Index = () => {
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
+      <NotificationTicker />
       <main className="flex-1">
         <HeroSection />
         <AboutSection />
