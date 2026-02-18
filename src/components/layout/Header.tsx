@@ -32,7 +32,11 @@ export function Header() {
           </div>
 
           {/* Right: Utility Links & Search */}
-          <div className="flex flex-1 items-center justify-end gap-4 sm:gap-6">
+          <div className="flex flex-1 items-center justify-end gap-3 sm:gap-6">
+            <a href="mailto:dsnluvsp@gmail.com" className="md:hidden flex items-center gap-1 text-[12px] font-medium text-white mr-auto sm:mr-0 truncate max-w-[170px]">
+              <Mail className="h-3 w-3" />
+              <span>dsnluvsp@gmail.com</span>
+            </a>
             <div className="hidden items-center gap-4 sm:gap-5 md:flex">
               {utilityLinks.map((link) => (
                 <a 
@@ -103,7 +107,7 @@ export function Header() {
 
       {/* Main Branding Section (Logo + Gold Name) */}
       <div 
-        className="py-4 sm:py-5 shadow-inner relative overflow-hidden"
+        className="py-2 md:py-5 shadow-inner relative overflow-hidden"
         style={{
           background: "linear-gradient(90deg, #1e2f4f 0%, #223b6b 50%, #1e2f4f 100%)",
           boxShadow: "inset 0 -10px 25px rgba(0,0,0,0.3)"
@@ -112,14 +116,14 @@ export function Header() {
         <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80')] opacity-5 pointer-events-none mix-blend-overlay" />
         
         <div className="container relative z-10 px-4">
-          <div className="flex flex-col items-center justify-between gap-4 md:flex-row">
+          <div className="flex flex-col items-center justify-between gap-1 md:gap-4 md:flex-row">
             {/* Left Logo */}
             <div className="flex-shrink-0">
               <Link to="/">
                 <img 
                   src="https://dsnlu.ac.in/storage/2023/11/dsnlulogo0-1.png" 
                   alt="DSNLU Logo Left" 
-                  className="h-[55px] w-auto transition-all md:h-[75px]"
+                  className="h-[40px] md:h-[75px] w-auto transition-all"
                 />
               </Link>
             </div>
@@ -127,23 +131,54 @@ export function Header() {
             {/* Center: University Name & Quote */}
             <div className="flex flex-col items-center text-center max-w-3xl">
               <h1 
-                className="font-serif text-[19px] font-bold tracking-tight text-[#d4a017] md:text-2xl lg:text-[28px] leading-tight"
+                className="font-serif text-[14px] md:text-2xl lg:text-[28px] font-bold tracking-tight text-[#d4a017] leading-tight"
                 style={{ textShadow: "0 2px 6px rgba(0,0,0,0.3)" }}
               >
                 DAMODARAM SANJIVAYYA NATIONAL LAW UNIVERSITY
               </h1>
-              <p className="mt-1 font-serif text-[12px] italic text-[#f3f3f3] md:text-[14px] opacity-85">
+              <p className="mt-1 font-serif text-[10px] md:text-[14px] italic text-[#f3f3f3] opacity-85">
                 ~ a cradle of future jurists ~
               </p>
             </div>
 
             {/* Right Logo */}
-            <div className="flex-shrink-0">
+            <div className="flex-shrink-0 hidden md:block">
               <Link to="/">
                 <img 
                   src="https://dsnlu.ac.in/storage/2022/12/DSNLU_Logo-1-300x291-1.png" 
                   alt="DSNLU Logo Right" 
-                  className="h-[55px] w-auto transition-all md:h-[75px]"
+                  className="h-[40px] md:h-[75px] w-auto transition-all"
+                />
+              </Link>
+            </div>
+            
+            {/* Right Logo Mobile (Hidden on desktop to avoid duping flex logic if not needed, but keeping consistent with original layout which seemed to show both? 
+               Wait, the original layout just stacked them. 
+               The requirement says "Resize circular logos (top & bottom)". 
+               In the original code: 
+               Flex col gap-4. 
+               Logo Left.
+               Center Text.
+               Right Logo.
+               
+               In mobile column layout, this means:
+               Top: Left Logo
+               Middle: Text
+               Bottom: Right Logo.
+               
+               If I keep it as is, it will be:
+               Logo
+               Text
+               Logo
+               
+               Let's respect the "Resize circular logos (top & bottom)" instruction implying both are visible.
+            */}
+             <div className="flex-shrink-0 md:hidden">
+              <Link to="/">
+                <img 
+                  src="https://dsnlu.ac.in/storage/2022/12/DSNLU_Logo-1-300x291-1.png" 
+                  alt="DSNLU Logo Right" 
+                  className="h-[40px] w-auto transition-all"
                 />
               </Link>
             </div>
