@@ -17,7 +17,7 @@ export function MobileMenu({ items, onClose }: MobileMenuProps) {
       initial={{ height: 0, opacity: 0 }}
       animate={{ height: "auto", opacity: 1 }}
       exit={{ height: 0, opacity: 0 }}
-      className="overflow-hidden border-t lg:hidden"
+      className="overflow-hidden border-t lg:hidden bg-white shadow-xl"
     >
       <div className="container max-h-[70vh] overflow-y-auto py-4">
         {items.map((item) => (
@@ -25,7 +25,9 @@ export function MobileMenu({ items, onClose }: MobileMenuProps) {
             {item.groups ? (
               <>
                 <button
-                  onClick={() => setExpanded(expanded === item.label ? null : item.label)}
+                  onClick={() =>
+                    setExpanded(expanded === item.label ? null : item.label)
+                  }
                   className="flex w-full items-center justify-between py-3 text-sm font-medium text-foreground transition-colors hover:text-gold"
                 >
                   {item.label}
@@ -45,7 +47,10 @@ export function MobileMenu({ items, onClose }: MobileMenuProps) {
                           {group.heading}
                         </span>
                         {group.items.map((sub) => (
-                          <div key={sub.label} className="flex flex-col border-l border-border/50 py-1 pl-4">
+                          <div
+                            key={sub.label}
+                            className="flex flex-col border-l border-border/50 py-1 pl-4"
+                          >
                             {sub.isHeader ? (
                               <span className="mb-1 mt-3 text-[10px] font-bold uppercase tracking-widest text-gold/60">
                                 {sub.label}
@@ -53,11 +58,19 @@ export function MobileMenu({ items, onClose }: MobileMenuProps) {
                             ) : sub.subItems ? (
                               <div className="flex flex-col">
                                 <button
-                                  onClick={() => setExpandedSub(expandedSub === sub.label ? null : sub.label)}
+                                  onClick={() =>
+                                    setExpandedSub(
+                                      expandedSub === sub.label
+                                        ? null
+                                        : sub.label,
+                                    )
+                                  }
                                   className="flex w-full items-center justify-between py-2 text-sm text-muted-foreground transition-colors hover:text-gold"
                                 >
                                   <div className="flex items-center gap-2">
-                                    {sub.icon && <sub.icon className="h-3.5 w-3.5" />}
+                                    {sub.icon && (
+                                      <sub.icon className="h-3.5 w-3.5" />
+                                    )}
                                     {sub.label}
                                   </div>
                                   <ChevronDown
@@ -88,14 +101,26 @@ export function MobileMenu({ items, onClose }: MobileMenuProps) {
                                 <a
                                   href={sub.href}
                                   onClick={onClose}
-                                  target={sub.href.startsWith("http") ? "_blank" : undefined}
-                                  rel={sub.href.startsWith("http") ? "noopener noreferrer" : undefined}
+                                  target={
+                                    sub.href.startsWith("http")
+                                      ? "_blank"
+                                      : undefined
+                                  }
+                                  rel={
+                                    sub.href.startsWith("http")
+                                      ? "noopener noreferrer"
+                                      : undefined
+                                  }
                                   className="flex items-center gap-2 py-1 text-sm text-muted-foreground transition-colors hover:text-gold"
                                 >
-                                  {sub.icon && <sub.icon className="h-3.5 w-3.5" />}
+                                  {sub.icon && (
+                                    <sub.icon className="h-3.5 w-3.5" />
+                                  )}
                                   {sub.label}
                                   {sub.href.endsWith(".pdf") && (
-                                    <span className="text-[10px] font-bold text-gold/60 ml-1">(PDF)</span>
+                                    <span className="text-[10px] font-bold text-gold/60 ml-1">
+                                      (PDF)
+                                    </span>
                                   )}
                                 </a>
                                 {sub.secondaryAction && (

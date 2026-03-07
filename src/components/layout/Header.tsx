@@ -52,7 +52,7 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full shadow-lg">
       {/* Top Utility Bar (Blue Strip) */}
-      <div className="bg-primary text-primary-foreground border-b border-white/10">
+      <div className="bg-primary text-primary-foreground border-b border-white/10 relative z-[110]">
         <div className="container flex items-center justify-between py-1.5 text-[12px] sm:text-[13px]">
           {/* Left: Contact Info */}
           <div className="hidden items-center gap-6 md:flex">
