@@ -3,16 +3,51 @@ import { Link } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Phone, Mail, Search, Menu, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { navItems, utilityLinks } from "./header/navData";
+import { navItems as staticNavItems, utilityLinks } from "./header/navData";
+import { useNavAdditions } from "@/hooks/useNavAdditions";
 import { MegaMenu } from "./header/MegaMenu";
 import { MobileMenu } from "./header/MobileMenu";
 import { cn } from "@/lib/utils";
 
 export function Header() {
+  const navItems = useNavAdditions();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
+  const [searchResults, setSearchResults] = useState<{ label: string; href: string; parent?: string }[]>([]);
+
+  // ─── Search Logic ──────────────────────────────────────────────────────────
+
+  const handleSearch = (val: string) => {
+    setSearchValue(val);
+    if (!val.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const query = val.toLowerCase();
+    const results: { label: string; href: string; parent?: string }[] = [];
+
+    const searchRecursive = (items: any[], parentLabel?: string) => {
+      items.forEach(item => {
+        if (item.label && item.label.toLowerCase().includes(query) && item.href !== "#") {
+          results.push({ label: item.label, href: item.href, parent: parentLabel });
+        }
+        if (item.groups) {
+          item.groups.forEach((g: any) => searchRecursive(g.items, item.label));
+        }
+        if (item.items) {
+          searchRecursive(item.items, parentLabel);
+        }
+        if (item.subItems) {
+          searchRecursive(item.subItems, item.label);
+        }
+      });
+    };
+
+    searchRecursive(navItems);
+    setSearchResults(results.slice(0, 8)); // Limit to 8 results
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full shadow-lg">
@@ -51,45 +86,62 @@ export function Header() {
               ))}
             </div>
 
-            {/* Advanced Animated Search Button & Input */}
+            {/* Always Open Search Bar */}
             <div className="relative flex items-center h-8">
-              <motion.div
-                initial={false}
-                animate={{ 
-                  width: searchOpen ? (window.innerWidth < 640 ? "160px" : "220px") : "32px",
-                  backgroundColor: searchOpen ? "rgba(255, 255, 255, 1)" : "rgba(255, 255, 255, 0.1)"
-                }}
+              <div
                 className={cn(
-                  "flex items-center overflow-hidden rounded-full transition-all duration-400 ease-in-out h-8",
-                  searchOpen ? "px-3 shadow-md border border-gold/30" : "cursor-pointer hover:bg-white/20"
+                  "flex items-center overflow-visible rounded-full h-8 px-3 shadow-md border border-gold/30 bg-white"
                 )}
-                onClick={() => !searchOpen && setSearchOpen(true)}
               >
-                <Search className={cn("h-4 w-4 shrink-0 transition-colors duration-300", searchOpen ? "text-primary" : "text-white")} />
+                <Search className="h-4 w-4 shrink-0 text-primary" />
                 <input
                   type="text"
-                  placeholder="Search..."
+                  placeholder="Search pages..."
                   value={searchValue}
-                  autoFocus={searchOpen}
-                  onChange={(e) => setSearchValue(e.target.value)}
-                  className={cn(
-                    "ml-2 w-full bg-transparent text-sm text-primary outline-none placeholder:text-muted-foreground/60 transition-opacity duration-300",
-                    !searchOpen && "pointer-events-none opacity-0"
-                  )}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="ml-2 w-[140px] sm:w-[200px] bg-transparent text-sm text-primary outline-none placeholder:text-muted-foreground/60"
                 />
-                {searchOpen && (
+                {searchValue && (
                   <button 
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      setSearchOpen(false); 
-                      setSearchValue(""); 
-                    }}
+                    onClick={() => { setSearchValue(""); setSearchResults([]); }}
                     className="ml-1 p-0.5 rounded-full hover:bg-gray-100 transition-colors"
                   >
-                    <X className="h-3.5 w-3.5 text-muted-foreground hover:text-primary transition-colors" />
+                    <X className="h-3.5 w-3.5 text-muted-foreground hover:text-primary" />
                   </button>
                 )}
-              </motion.div>
+              </div>
+
+              {/* Search Results Dropdown */}
+              <AnimatePresence>
+                {searchResults.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute top-10 right-0 w-[280px] sm:w-[350px] bg-white rounded-xl shadow-2xl border border-border overflow-hidden z-[110]"
+                  >
+                    <div className="p-2 max-h-[400px] overflow-y-auto">
+                      {searchResults.map((result, idx) => (
+                        <Link
+                          key={idx}
+                          to={result.href}
+                          onClick={() => { setSearchValue(""); setSearchResults([]); }}
+                          className="flex flex-col px-4 py-2.5 hover:bg-gold/10 rounded-lg group transition-colors"
+                        >
+                          <span className="text-sm font-bold text-navy group-hover:text-primary transition-colors">
+                            {result.label}
+                          </span>
+                          {result.parent && (
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-widest leading-none mt-0.5">
+                              {result.parent}
+                            </span>
+                          )}
+                        </Link>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* Mobile Menu Toggle */}
@@ -131,12 +183,12 @@ export function Header() {
             {/* Center: University Name & Quote */}
             <div className="flex flex-col items-center text-center max-w-3xl">
               <h1 
-                className="font-serif text-[14px] md:text-2xl lg:text-[28px] font-bold tracking-tight text-[#d4a017] leading-tight"
+                className="font-serif text-[11px] sm:text-[14px] md:text-xl lg:text-2xl xl:text-[28px] font-bold tracking-tight text-[#d4a017] leading-tight whitespace-nowrap"
                 style={{ textShadow: "0 2px 6px rgba(0,0,0,0.3)" }}
               >
                 DAMODARAM SANJIVAYYA NATIONAL LAW UNIVERSITY
               </h1>
-              <p className="mt-1 font-serif text-[10px] md:text-[14px] italic text-[#f3f3f3] opacity-85">
+              <p className="mt-0.5 md:mt-1 font-serif text-[8px] md:text-[14px] italic text-[#f3f3f3] opacity-85">
                 ~ a cradle of future jurists ~
               </p>
             </div>

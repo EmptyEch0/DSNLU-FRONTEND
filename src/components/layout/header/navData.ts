@@ -158,6 +158,74 @@ export const navItems: NavItem[] = [
     ],
   },
   {
+    label: "Students",
+    href: "#students",
+    groups: [
+      {
+        heading: "Student Services",
+        items: [
+          { label: "Placement & Internship", href: "/students/placement-internship", icon: Briefcase },
+          { label: "Student Code of Conduct", href: "/students/student-code-of-conduct", icon: ScrollText },
+          { label: "Student Welfare Cell", href: "/students/student-welfare-cell", icon: Heart },
+        ],
+      },
+      {
+        heading: "Cells & Committees",
+        items: [
+          { label: "SC / ST Cell", href: "#", isHeader: true },
+          { label: "About Cell", href: "/students/sc-st-cell/about" },
+          { label: "Committee", href: "/students/sc-st-cell/committee" },
+          { label: "Activities", href: "/students/sc-st-cell/activities" },
+          { label: "Safeguards", href: "/students/sc-st-cell/safeguards" },
+          { label: "Grievance & Contact", href: "/students/sc-st-cell/grievance" },
+          { label: "Internal Complaints Committee", href: "#", isHeader: true },
+          { label: "About ICC", href: "/students/icc/about" },
+          { label: "Committee Members", href: "/students/icc/members" },
+          { label: "Rules", href: "/students/icc/rules" },
+          { label: "Statutory Committees & Centres (PDF)", href: "/students/cells-committees/statutory" },
+        ],
+      },
+      {
+        heading: "Campus Life & Alumni",
+        items: [
+          { label: "Hostels", href: "#", isHeader: true },
+          { label: "Hostel Rules", href: "/students/hostel-rules", icon: ShieldCheck },
+          { label: "Girls Hostel Manual", href: "/students/girls-hostel-manual", icon: BookCopy },
+          { label: "Committees & Societies", href: "#", isHeader: true },
+          { 
+            label: "Legal Services Committee", 
+            href: "#",
+            subItems: [
+              { label: "About LSC", href: "/students/legal-services-committee/about" },
+              { label: "Activities", href: "/students/legal-services-committee/activities" },
+              { label: "Members", href: "/students/legal-services-committee/members" },
+              { label: "Contact", href: "/students/legal-services-committee/contact" },
+            ]
+          },
+          { 
+            label: "Sports Committee", 
+            href: "#",
+            subItems: [
+              { label: "About Committee", href: "/students/sports-committee/about" },
+              { label: "Activities", href: "/students/sports-committee/activities" },
+              { label: "Members", href: "/students/sports-committee/members" },
+              { label: "Achievements", href: "/students/sports-committee/achievements" },
+              { label: "Contact", href: "/students/sports-committee/contact" },
+            ]
+          },
+          { label: "Cultural Committee", href: "/students/cultural-committee" },
+          { label: "Moot & Advocacy Society (MAS)", href: "/students/moot-advocacy-society" },
+          { label: "Alumni Relations Committee", href: "/students/alumni-relations-committee" },
+          { label: "Student Activities", href: "#", isHeader: true },
+          { label: "SFPP Blog", href: "https://sfppdsnlu.wordpress.com/" },
+          { label: "Alumni", href: "#", isHeader: true },
+          { label: "Alumni Relations Committee", href: "/students/alumni-relations-committee" },
+          { label: "DSNLU Alumni", href: "/students/alumni-portal" },
+        ],
+      },
+    ],
+  },
+  {
     label: "Centres",
     href: "#research",
     groups: [
@@ -222,6 +290,24 @@ export const navItems: NavItem[] = [
             icon: Gavel,
             subItems: [{ label: "About Centre", href: "/centres/criminal-justice/about" }],
           },
+          {
+            label: "Training, Research and Innovation in Advocacy & Litigation (C-TRIAL)",
+            href: "/centres/c-trial/about",
+            icon: Gavel,
+            subItems: [{ label: "About Centre", href: "/centres/c-trial/about" }],
+          },
+          {
+            label: "Centre for Aviation and Space Laws (CAS-L)",
+            href: "/centres/cas-l/about",
+            icon: Ship,
+            subItems: [{ label: "About Centre", href: "/centres/cas-l/about" }],
+          },
+          {
+            label: "International Centre for MSMEs (ICMSME)",
+            href: "/centres/icmsme/about",
+            icon: Building2,
+            subItems: [{ label: "About Centre", href: "/centres/icmsme/about" }],
+          },
         ],
       },
       {
@@ -275,39 +361,27 @@ export const navItems: NavItem[] = [
           },
           {
             label: "Fashion, Media and Entertainment Laws",
-            href: "#fashion-media-laws",
-            icon: FlaskConical,
-            subItems: [{ label: "About Centre", href: "#about" }],
+            href: "/centres/fashion-media/about",
+            icon: Scale,
+            subItems: [{ label: "About Centre", href: "/centres/fashion-media/about" }],
           },
           {
             label: "Banking and Finance Law & Policy",
-            href: "#banking-finance",
-            icon: FlaskConical,
-            subItems: [{ label: "About Centre", href: "#about" }],
+            href: "/centres/banking-finance/about",
+            icon: Landmark,
+            subItems: [{ label: "About Centre", href: "/centres/banking-finance/about" }],
           },
           {
             label: "Sports Law & Policy Centre",
-            href: "#sports-law",
-            icon: FlaskConical,
-            subItems: [{ label: "About Centre", href: "#about" }],
+            href: "/centres/sports-law/about",
+            icon: Award,
+            subItems: [{ label: "About Centre", href: "/centres/sports-law/about" }],
           },
           {
-            label: "Training, Research and Innovation in Advocacy & Litigation (C-TRIAL)",
-            href: "#c-trial",
-            icon: FlaskConical,
-            subItems: [{ label: "About Centre", href: "#about" }],
-          },
-          {
-            label: "Centre for Aviation and Space Laws (CAS-L)",
-            href: "#cas-l",
-            icon: FlaskConical,
-            subItems: [{ label: "About Centre", href: "#about" }],
-          },
-          {
-            label: "International Centre for MSMEs (ICMSME)",
-            href: "#icmsme",
-            icon: FlaskConical,
-            subItems: [{ label: "About Centre", href: "#about" }],
+            label: "Sports Law & Policy Centre",
+            href: "/centres/sports-law/about",
+            icon: Award,
+            subItems: [{ label: "About Centre", href: "/centres/sports-law/about" }],
           },
         ],
       },
@@ -323,13 +397,14 @@ export const navItems: NavItem[] = [
           { label: "Publications", href: "/academics/publications/overview", icon: BookMarked },
           {
             label: "Journals",
-            href: "#",
+            href: "/academics/journals/science-technology-law",
             icon: Newspaper,
             subItems: [
-              { label: "DSNLU Journal of Science, Technology and Law", href: "/academics/journals/science-technology-law" },
-              { label: "We the People DSNLU Journal of Social Sciences", href: "#" },
-              { label: "Damodaram Sanjivayya National Law Journal (DSNLJ)", href: "#" },
-              { label: "JALAF- CADR", href: "#" },
+              { label: "ABOUT THE JOURNAL", href: "/academics/journals/science-technology-law?tab=about", icon: Info },
+              { label: "SUBMISSION GUIDELINES", href: "/academics/journals/science-technology-law?tab=guidelines", icon: FileText },
+              { label: "EDITORIAL BOARD & ADVISORY BOARD", href: "/academics/journals/science-technology-law?tab=board", icon: Users },
+              { label: "CURRENT ISSUES", href: "/academics/journals/science-technology-law?tab=current", icon: BookOpen },
+              { label: "ARCHIVES", href: "/academics/journals/science-technology-law?tab=archives", icon: Archive },
             ],
           },
           { label: "WAVES News-Letter", href: "/academics/publications/waves", icon: Newspaper },
@@ -385,76 +460,6 @@ export const navItems: NavItem[] = [
     ],
   },
   {
-    label: "Students",
-    href: "#students",
-    groups: [
-      {
-        heading: "Student Services",
-        items: [
-          { label: "Placement & Internship", href: "/students/placement-internship", icon: Briefcase },
-          { label: "Student Code of Conduct", href: "/students/student-code-of-conduct", icon: ScrollText },
-          { label: "Student Welfare Cell", href: "/students/student-welfare-cell", icon: Heart },
-        ],
-      },
-      {
-        heading: "Cells & Committees",
-        items: [
-          { label: "SC / ST Cell", href: "#", isHeader: true },
-          { label: "About Cell", href: "/students/sc-st-cell/about" },
-          { label: "Committee", href: "/students/sc-st-cell/committee" },
-          { label: "Activities", href: "/students/sc-st-cell/activities" },
-          { label: "Safeguards", href: "/students/sc-st-cell/safeguards" },
-          { label: "Grievance & Contact", href: "/students/sc-st-cell/grievance" },
-          { label: "Internal Complaints Committee", href: "#", isHeader: true },
-          { label: "About ICC", href: "/students/icc/about" },
-          { label: "Committee Members", href: "/students/icc/members" },
-          { label: "Rules", href: "/students/icc/rules" },
-          { label: "Statutory Committees & Centres (PDF)", href: "/students/cells-committees/statutory" },
-        ],
-      },
-      {
-        heading: "Campus Life & Alumni",
-        items: [
-          { label: "Hostels", href: "#", isHeader: true },
-          { label: "Hostel Rules", href: "/students/hostel-rules", icon: ShieldCheck },
-          { label: "Girls Hostel Manual", href: "/students/girls-hostel-manual", icon: BookCopy },
-          { label: "Committees & Societies", href: "#", isHeader: true },
-          { 
-            label: "Legal Services Committee", 
-            href: "#",
-            subItems: [
-              { label: "About LSC", href: "/students/legal-services-committee/about" },
-              { label: "Activities", href: "/students/legal-services-committee/activities" },
-              { label: "Members", href: "/students/legal-services-committee/members" },
-              { label: "Contact", href: "/students/legal-services-committee/contact" },
-            ]
-          },
-          { 
-            label: "Sports Committee", 
-            href: "#",
-            subItems: [
-              { label: "About Committee", href: "/students/sports-committee/about" },
-              { label: "Activities", href: "/students/sports-committee/activities" },
-              { label: "Members", href: "/students/sports-committee/members" },
-              { label: "Achievements", href: "/students/sports-committee/achievements" },
-              { label: "Contact", href: "/students/sports-committee/contact" },
-            ]
-          },
-          { label: "Cultural Committee", href: "/students/cultural-committee" },
-          { label: "Moot & Advocacy Society (MAS)", href: "/students/moot-advocacy-society" },
-          { label: "Alumni Relations Committee", href: "/students/alumni-relations-committee" },
-          { label: "Student Activities", href: "#", isHeader: true },
-          { label: "Student Newsletter / Drishtikon", href: "#notices" },
-          { label: "SNL-DSNLU", href: "#snl" },
-          { label: "SFPP Blog", href: "https://sfppdsnlu.wordpress.com/" },
-          { label: "Alumni", href: "#", isHeader: true },
-          { label: "Alumni Relations Committee", href: "/students/alumni-relations-committee" },
-          { label: "DSNLU Alumni", href: "/students/alumni-portal" },
-        ],
-      },
-    ],
-  },
-  {
     label: "Programs",
     href: "#programs",
     groups: [
@@ -463,7 +468,6 @@ export const navItems: NavItem[] = [
         items: [
           { label: "Guest Lectures", href: "/programs/guest-lectures", icon: Users },
           { label: "Seminars & Conferences", href: "/programs/seminars-conferences", icon: Globe },
-          { label: "Events Gallery", href: "#gallery", icon: Archive },
         ],
       },
       {
@@ -488,21 +492,6 @@ export const navItems: NavItem[] = [
           { label: "Results", href: "#results", icon: FileText },
           { label: "Regulations", href: "#exam-regulations", icon: ScrollText },
           { label: "Timetables", href: "#timetables", icon: CalendarDays },
-        ],
-      },
-    ],
-  },
-  {
-    label: "Notices",
-    href: "#notices",
-    groups: [
-      {
-        heading: "Notices & Updates",
-        items: [
-          { label: "Important Notices", href: "#important-notices", icon: Bell },
-          { label: "Tenders", href: "#tenders", icon: FileText },
-          { label: "Recruitments", href: "#recruitments", icon: UserPlus },
-          { label: "Announcements", href: "#announcements", icon: Newspaper },
         ],
       },
     ],

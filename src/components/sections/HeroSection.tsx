@@ -19,7 +19,7 @@ export function HeroSection() {
 
       {/* Content */}
       <div className="container relative z-10 flex min-h-[85vh] flex-col justify-center py-20">
-        <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-[1.5fr_1fr] md:gap-8 lg:grid-cols-[55%_45%]">
+        <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-[1.2fr_1fr] md:gap-8 lg:grid-cols-[45%_55%]">
           {/* LEFT COLUMN: Hero Text */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -53,11 +53,11 @@ export function HeroSection() {
                 Apply for Admission
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Button>
-              <Button size="lg" variant="outline" className="border-ivory/30 text-ivory hover:bg-ivory/10 hover:text-ivory">
+              <Button size="lg" variant="outline" className="bg-transparent border-ivory/40 text-ivory hover:bg-gold hover:text-navy hover:border-gold transition-all duration-300">
                 <BookOpen className="mr-2 h-5 w-5" />
                 Explore Programs
               </Button>
-              <Button size="lg" variant="ghost" className="text-ivory hover:bg-ivory/10 hover:text-ivory">
+              <Button size="lg" variant="ghost" className="text-ivory hover:bg-white/10 hover:text-white transition-all">
                 <Bell className="mr-2 h-5 w-5" />
                 Latest Notices
               </Button>

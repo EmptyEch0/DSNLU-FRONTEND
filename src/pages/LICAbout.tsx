@@ -1,25 +1,97 @@
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { ChevronRight, Target, Users, Lightbulb, Briefcase, GraduationCap } from "lucide-react";
+import { ChevronRight, Target, Users, Lightbulb, Briefcase, GraduationCap, X } from "lucide-react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
+import { useAdmin } from "@/context/AdminContext";
 
-const memberSemesters = [
-  { semester: "IX Semester", members: ["Member 1", "Member 2"] }, // Data not fully provided, using placeholders or generic structure
-  { semester: "VII Semester", members: ["Member 1", "Member 2"] },
-  { semester: "V Semester", members: ["Member 1", "Member 2"] },
-  { semester: "III Semester", members: ["Member 1", "Member 2"] },
-  { semester: "I Semester", members: ["Member 1", "Member 2"] },
-];
-
-const traineeMembers = [
-  { name: "Meruva Tony Akash", semester: "V Semester" },
-  { name: "Priyansha Trivedi", semester: "V Semester" },
-  { name: "Koilada Tanusri Naga Nuka Sai", semester: "III Semester" },
-  { name: "Varun Jagga", semester: "I Semester" },
-];
+const API = import.meta.env.VITE_API_URL;
 
 const LICAbout = () => {
+  const { token } = useAdmin();
+
+  const [data, setData] = useState<any>({
+    honorary: [],
+    faculty: [],
+    students: {},
+    trainees: [],
+  });
+
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+
+  const [formCategory, setFormCategory] = useState("");
+  const [formRoleTitle, setFormRoleTitle] = useState("");
+  const [formName, setFormName] = useState("");
+  const [formSemester, setFormSemester] = useState("");
+
+  const fetchCommittee = async () => {
+    try {
+      const res = await fetch(`${API}/api/centres/lic/committee`);
+      const json = await res.json();
+      setData(json);
+    } catch (error) {
+      console.error("Error fetching committee:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchCommittee();
+  }, []);
+
+  const openEdit = (item: any) => {
+    setEditItem(item);
+    setFormCategory(item.category);
+    setFormRoleTitle(item.role_title || "");
+    setFormName(item.name);
+    setFormSemester(item.semester || "");
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    const payload = {
+      category: formCategory,
+      role_title: formRoleTitle,
+      name: formName,
+      semester: formSemester,
+    };
+
+    if (editItem) {
+      await fetch(`${API}/api/admin/lic-committee/${editItem.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await fetch(`${API}/api/admin/lic-committee`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+    }
+
+    setShowModal(false);
+    fetchCommittee();
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this member?")) return;
+
+    await fetch(`${API}/api/admin/lic-committee/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    fetchCommittee();
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
@@ -131,9 +203,27 @@ const LICAbout = () => {
               viewport={{ once: true }}
               className="space-y-8"
             >
-              <h2 className="font-serif text-3xl font-bold text-[#0f2d5c] border-l-4 border-gold pl-6">
-                Committee
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-3xl font-bold text-[#0f2d5c] border-l-4 border-gold pl-6">
+                  Committee
+                </h2>
+                {token && (
+                  <button
+                    onClick={() => {
+                      setEditItem(null);
+                      setFormCategory("");
+                      setFormRoleTitle("");
+                      setFormName("");
+                      setFormSemester("");
+                      setShowModal(true);
+                    }}
+                    className="bg-gold text-[#0f2d5c] px-4 py-2 rounded font-bold shadow-md hover:bg-gold/90 transition-all"
+                  >
+                    + Add Member
+                  </button>
+                )}
+              </div>
+
               <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -143,23 +233,36 @@ const LICAbout = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y text-muted-foreground">
-                    <tr>
-                      <td className="px-6 py-4 font-bold text-[#0f2d5c] bg-secondary/20">Honorary Chair Person</td>
-                      <td className="px-6 py-4">Dr. Nandini C.P.</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 font-bold text-[#0f2d5c] bg-secondary/20" rowSpan={4}>Faculty Members</td>
-                      <td className="px-6 py-4">Dr. Ch. Lakshmi</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4">Dr. A. Nageswara Rao</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4">Dr. Rifat Khan</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4">Dr. I. Durga Prasad</td>
-                    </tr>
+                    {data.honorary.map((m: any) => (
+                      <tr key={m.id} className="group/item">
+                        <td className="px-6 py-4 font-bold text-[#0f2d5c] bg-secondary/20 whitespace-normal">
+                          {m.role_title}
+                        </td>
+                        <td className="px-6 py-4 flex justify-between items-center transition-all">
+                          {m.name}
+                          {token && (
+                            <div className="flex gap-2 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                              <button onClick={() => openEdit(m)} className="p-1 hover:text-gold transition-colors">✏️</button>
+                              <button onClick={() => handleDelete(m.id)} className="p-1 hover:text-red-500 transition-colors">🗑️</button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {data.faculty.map((m: any) => (
+                      <tr key={m.id} className="group/item">
+                        <td className="px-6 py-4 font-bold text-[#0f2d5c] bg-secondary/20">Faculty Member</td>
+                        <td className="px-6 py-4 flex justify-between items-center transition-all">
+                          {m.name}
+                          {token && (
+                            <div className="flex gap-2 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                              <button onClick={() => openEdit(m)} className="p-1 hover:text-gold transition-colors">✏️</button>
+                              <button onClick={() => handleDelete(m.id)} className="p-1 hover:text-red-500 transition-colors">🗑️</button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -176,14 +279,22 @@ const LICAbout = () => {
                 Student Members
               </h2>
               <div className="grid gap-6 md:grid-cols-2">
-                {memberSemesters.map((sem, i) => (
-                  <div key={i} className="p-6 rounded-2xl border bg-card shadow-sm hover:border-gold/30 transition-all">
-                    <h4 className="text-gold font-bold uppercase tracking-widest text-xs mb-4">{sem.semester}</h4>
+                {Object.entries(data.students).map(([semester, members]: any) => (
+                  <div key={semester} className="p-6 rounded-2xl border bg-card shadow-sm hover:border-gold/30 transition-all">
+                    <h4 className="text-gold font-bold uppercase tracking-widest text-xs mb-4">{semester}</h4>
                     <ul className="space-y-2">
-                      {sem.members.map((m, idx) => (
-                        <li key={idx} className="flex items-center gap-2 text-foreground font-medium">
-                          <div className="h-1.5 w-1.5 rounded-full bg-gold" />
-                          {m}
+                      {members.map((m: any) => (
+                        <li key={m.id} className="group/item flex items-center justify-between text-foreground font-medium">
+                          <div className="flex items-center gap-2">
+                            <div className="h-1.5 w-1.5 rounded-full bg-gold" />
+                            {m.name}
+                          </div>
+                          {token && (
+                            <div className="flex gap-2 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                              <button onClick={() => openEdit(m)} className="p-1 hover:text-gold transition-colors text-sm">✏️</button>
+                              <button onClick={() => handleDelete(m.id)} className="p-1 hover:text-red-500 transition-colors text-sm">🗑️</button>
+                            </div>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -203,12 +314,22 @@ const LICAbout = () => {
                 Trainee Members
               </h2>
               <div className="grid gap-4">
-                {traineeMembers.map((trainee, i) => (
-                  <div key={i} className="flex items-center justify-between p-5 rounded-xl border bg-secondary/20 group hover:border-gold/30 transition-all">
-                    <h4 className="font-bold text-[#0f2d5c]">{trainee.name}</h4>
-                    <span className="text-xs font-bold uppercase tracking-widest text-gold bg-white px-3 py-1 rounded-full shadow-sm">
-                      {trainee.semester}
-                    </span>
+                {data.trainees.map((t: any) => (
+                  <div key={t.id} className="group flex items-center justify-between p-5 rounded-xl border bg-secondary/20 hover:border-gold/30 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div>
+                        <strong className="text-[#0f2d5c] font-bold">{t.name}</strong>
+                        <span className="ml-3 text-gold text-xs font-bold uppercase tracking-widest bg-white px-3 py-1 rounded-full shadow-sm">
+                          {t.semester}
+                        </span>
+                      </div>
+                      {token && (
+                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => openEdit(t)} className="p-1 hover:text-gold transition-colors">✏️</button>
+                          <button onClick={() => handleDelete(t.id)} className="p-1 hover:text-red-500 transition-colors">🗑️</button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -218,6 +339,79 @@ const LICAbout = () => {
         </section>
       </main>
       <Footer />
+
+      {/* Admin Modal */}
+      <AnimatePresence>
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl w-full max-w-md p-8 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-xl font-bold text-[#0f2d5c]">
+                  {editItem ? "Edit Member" : "Add Member"}
+                </h2>
+                <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <select
+                className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                value={formCategory}
+                onChange={(e) => setFormCategory(e.target.value)}
+              >
+                <option value="">Select Category</option>
+                <option value="honorary">Honorary</option>
+                <option value="faculty">Faculty</option>
+                <option value="student">Student</option>
+                <option value="trainee">Trainee</option>
+              </select>
+
+              <input
+                className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                placeholder="Role Title (if honorary/faculty)"
+                value={formRoleTitle}
+                onChange={(e) => setFormRoleTitle(e.target.value)}
+              />
+
+              <input
+                className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                placeholder="Name"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+              />
+
+              {(formCategory === "student" || formCategory === "trainee") && (
+                <input
+                  className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                  placeholder="Semester"
+                  value={formSemester}
+                  onChange={(e) => setFormSemester(e.target.value)}
+                />
+              )}
+
+              <div className="flex justify-end gap-4 pt-4">
+                <button 
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="bg-[#0f2d5c] text-white px-6 py-2 rounded-lg font-bold shadow-md hover:bg-[#1a3a6b] transition-all"
+                >
+                  Save
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

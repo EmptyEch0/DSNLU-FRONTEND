@@ -1,9 +1,9 @@
+import { useState, useEffect } from "react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { SCSTHeader } from "@/components/layout/SCSTHeader";
 import { motion } from "framer-motion";
 import { 
-  Building2, 
   Mail, 
   Phone, 
   MapPin, 
@@ -11,7 +11,10 @@ import {
   MessageSquare,
   Send,
   HelpCircle,
-  Inbox
+  Inbox,
+  Plus,
+  Pencil,
+  Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,17 +26,146 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
+import { useAdmin } from "@/context/AdminContext";
+
+const API = import.meta.env.VITE_API_URL;
+
+interface GrievancePage {
+  id: number;
+  title: string;
+  subtitle: string;
+  slug: string;
+}
+
+interface GrievanceContact {
+  id: number;
+  title: string;
+  name: string;
+  email: string;
+  phone?: string;
+  display_order: number;
+}
 
 const SCSTGrievanceContact = () => {
-  const { toast } = useToast();
+  const { token } = useAdmin();
+  const [data, setData] = useState<{
+    page: GrievancePage;
+    contacts: GrievanceContact[];
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [modal, setModal] = useState<
+    | { type: "add" }
+    | { type: "edit"; data: GrievanceContact }
+    | null
+  >(null);
+
+  const [formData, setFormData] = useState<Partial<GrievanceContact>>({});
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${API}/api/scst/grievance`);
+      const resData = await res.json();
+      setData(resData);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load grievance data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Complaint Submitted",
-      description: "Your grievance has been successfully submitted to the SC/ST Cell.",
-    });
+    setSubmitting(true);
+
+    const fData = new FormData(e.target as HTMLFormElement);
+    const payload = {
+      full_name: fData.get("name"),
+      email: fData.get("email"),
+      phone: fData.get("phone"),
+      department: fData.get("department"),
+      subject: fData.get("subject"),
+      message: fData.get("message")
+    };
+
+    try {
+      const res = await fetch(`${API}/api/scst/complaint`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        toast.success("Grievance submitted successfully!");
+        (e.target as HTMLFormElement).reset();
+      } else {
+        toast.error("Failed to submit grievance");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error submitting grievance");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const authHeaders = () => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  });
+
+  const saveContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const isEdit = modal?.type === "edit";
+    const url = isEdit
+      ? `${API}/api/admin/scst/contact/${modal.data.id}`
+      : `${API}/api/admin/scst/contact`;
+    const method = isEdit ? "PUT" : "POST";
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: authHeaders(),
+        body: JSON.stringify({
+          ...formData,
+          page_id: data?.page.id,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success(isEdit ? "Contact updated" : "Contact added");
+        setModal(null);
+        fetchData();
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error saving contact");
+    }
+  };
+
+  const deleteContact = async (id: number) => {
+    if (!confirm("Delete this contact?")) return;
+    try {
+      const res = await fetch(`${API}/api/admin/scst/contact/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      if (res.ok) {
+        toast.success("Contact deleted");
+        fetchData();
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Error deleting contact");
+    }
   };
 
   return (
@@ -72,27 +204,51 @@ const SCSTGrievanceContact = () => {
 
                 {/* Contact Information Cards */}
                 <div className="space-y-6">
-                  <h3 className="font-serif text-2xl font-bold">Contact Personals</h3>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="p-6 rounded-xl border bg-card shadow-sm hover:border-gold/30 transition-colors">
-                      <h4 className="font-bold text-navy mb-1">Chairperson</h4>
-                      <p className="text-sm text-foreground mb-4">Prof. (Dr.) D. Surya Prakasa Rao</p>
-                      <div className="space-y-2 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-3.5 w-3.5" /> vc@dsnlu.ac.in
-                        </div>
-                      </div>
-                    </div>
-                    <div className="p-6 rounded-xl border bg-card shadow-sm hover:border-gold/30 transition-colors">
-                      <h4 className="font-bold text-navy mb-1">Covenor Secretary</h4>
-                      <p className="text-sm text-foreground mb-4">Dr. B. Ravi Seva Naik</p>
-                      <div className="space-y-2 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                          <Mail className="h-3.5 w-3.5" /> ravisenaik@dsnlu.ac.in
-                        </div>
-                      </div>
-                    </div>
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-serif text-2xl font-bold">Contact Personals</h3>
+                    {token && (
+                      <Button
+                        onClick={() => {
+                          setModal({ type: "add" });
+                          setFormData({ display_order: (data?.contacts?.length || 0) + 1 });
+                        }}
+                        className="bg-navy text-gold rounded-full text-xs font-bold gap-2"
+                      >
+                        <Plus className="h-4 w-4" /> Add
+                      </Button>
+                    )}
                   </div>
+
+                  {loading ? (
+                    <div className="animate-pulse space-y-4">
+                      <div className="h-24 bg-muted rounded-xl" />
+                      <div className="h-24 bg-muted rounded-xl" />
+                    </div>
+                  ) : (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      {data?.contacts?.map((contact) => (
+                        <div key={contact.id} className="group relative p-6 rounded-xl border bg-card shadow-sm hover:border-gold/30 transition-colors">
+                          <h4 className="font-bold text-navy mb-1">{contact.title}</h4>
+                          <p className="text-sm text-foreground mb-4">{contact.name}</p>
+                          <div className="space-y-2 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <Mail className="h-3.5 w-3.5" /> {contact.email}
+                            </div>
+                          </div>
+                          {token && (
+                            <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button onClick={() => { setModal({ type: "edit", data: contact }); setFormData(contact); }} className="p-1 hover:text-gold">
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                              <button onClick={() => deleteContact(contact.id)} className="p-1 hover:text-red-500">
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="p-6 rounded-xl border bg-card space-y-4 shadow-sm">
                     <div className="flex items-center gap-2 text-navy">
@@ -133,14 +289,14 @@ const SCSTGrievanceContact = () => {
                         <label className="text-xs font-bold uppercase text-muted-foreground px-1">Full Name</label>
                         <div className="relative">
                           <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                          <Input placeholder="Enter your name" className="pl-10 h-12" required />
+                          <Input name="name" placeholder="Enter your name" className="pl-10 h-12" required />
                         </div>
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-bold uppercase text-muted-foreground px-1">Email Address</label>
                         <div className="relative">
                           <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                          <Input type="email" placeholder="Enter your email" className="pl-10 h-12" required />
+                          <Input name="email" type="email" placeholder="Enter your email" className="pl-10 h-12" required />
                         </div>
                       </div>
                     </div>
@@ -150,12 +306,12 @@ const SCSTGrievanceContact = () => {
                         <label className="text-xs font-bold uppercase text-muted-foreground px-1">Phone Number</label>
                         <div className="relative">
                           <Phone className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                          <Input type="tel" placeholder="Enter phone" className="pl-10 h-12" required />
+                          <Input name="phone" type="tel" placeholder="Enter phone" className="pl-10 h-12" required />
                         </div>
                       </div>
                       <div className="space-y-2">
                         <label className="text-xs font-bold uppercase text-muted-foreground px-1">Department</label>
-                        <Select required>
+                        <Select name="department" required>
                           <SelectTrigger className="h-12">
                             <SelectValue placeholder="Select Department" />
                           </SelectTrigger>
@@ -171,20 +327,25 @@ const SCSTGrievanceContact = () => {
 
                     <div className="space-y-2">
                       <label className="text-xs font-bold uppercase text-muted-foreground px-1">Reason for contact</label>
-                      <Input placeholder="Brief subject of grievance" className="h-12" required />
+                      <Input name="subject" placeholder="Brief subject of grievance" className="h-12" required />
                     </div>
 
                     <div className="space-y-2">
                       <label className="text-xs font-bold uppercase text-muted-foreground px-1">Detailed Message</label>
                       <Textarea 
+                        name="message"
                         placeholder="Please describe your grievance in detail..." 
                         className="min-h-[150px] resize-none"
                         required
                       />
                     </div>
 
-                    <Button type="submit" className="w-full h-14 bg-navy text-white hover:bg-navy-light text-lg font-bold group">
-                      Submit Complaint
+                    <Button 
+                      type="submit" 
+                      disabled={submitting}
+                      className="w-full h-14 bg-navy text-white hover:bg-navy-light text-lg font-bold group"
+                    >
+                      {submitting ? "Submitting..." : "Submit Complaint"}
                       <Send className="ml-2 h-5 w-5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
                     </Button>
                   </form>
@@ -194,6 +355,28 @@ const SCSTGrievanceContact = () => {
           </div>
         </section>
       </main>
+
+      {/* Admin Modal */}
+      {(modal?.type === "add" || modal?.type === "edit") && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white p-8 rounded-3xl w-full max-w-lg space-y-6">
+            <h2 className="text-2xl font-bold text-navy">
+              {modal.type === "edit" ? "Edit Contact" : "Add Contact"}
+            </h2>
+            <form onSubmit={saveContact} className="space-y-4">
+              <input className="w-full border p-3 rounded-xl" placeholder="Title (e.g. Chairperson)" value={formData.title || ""} onChange={e => setFormData({ ...formData, title: e.target.value })} required />
+              <input className="w-full border p-3 rounded-xl" placeholder="Full Name" value={formData.name || ""} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
+              <input className="w-full border p-3 rounded-xl" placeholder="Email" value={formData.email || ""} onChange={e => setFormData({ ...formData, email: e.target.value })} required />
+              <input type="number" className="w-full border p-3 rounded-xl" placeholder="Display Order" value={formData.display_order || ""} onChange={e => setFormData({ ...formData, display_order: e.target.value })} required />
+              <div className="flex justify-end gap-3 pt-4">
+                <Button type="button" variant="outline" onClick={() => setModal(null)} className="rounded-full">Cancel</Button>
+                <Button type="submit" className="bg-navy text-gold rounded-full">Save Changes</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <Footer />
     </div>
   );

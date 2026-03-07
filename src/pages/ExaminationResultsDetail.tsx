@@ -1,20 +1,95 @@
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { ChevronRight, FileText, ArrowLeft, ArrowRight } from "lucide-react";
+import { ChevronRight, FileText, ArrowLeft, ArrowRight, Loader2, Plus, Pencil, Trash2 } from "lucide-react";
 import { Link, useParams, Navigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { ExamSidebar } from "@/components/layout/ExamSidebar";
-import { examResultsData } from "@/data/examResultsData";
+import { useState, useEffect, useCallback } from "react";
+import { apiFetch } from "@/lib/api";
+import { useAdmin } from "@/context/AdminContext";
+import { toast } from "sonner";
+import { ExamFileModal } from "@/components/admin/ExamFileModal";
+
+interface ExamResultFile {
+  id: number;
+  label: string;
+  file_url: string;
+  display_order: number;
+}
+
+interface ExamResult {
+  id: number;
+  title: string;
+  result_date: string;
+  type: 'pdf' | 'internal' | 'url';
+  link?: string;
+  slug?: string;
+  files?: ExamResultFile[];
+}
 
 const ExaminationResultsDetail = () => {
+  const { token } = useAdmin();
   const { slug } = useParams<{ slug: string }>();
+  const [result, setResult] = useState<ExamResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   
-  const result = examResultsData.find((r) => r.slug === slug);
+  // Modal state
+  const [isFileModalOpen, setIsFileModalOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<ExamResultFile | null>(null);
 
-  if (!result) {
+  const fetchResult = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await apiFetch<ExamResult>(`/api/exams/${slug}`);
+      setResult(data);
+    } catch (err: unknown) {
+      console.error("Failed to fetch exam result details", err);
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    if (slug) fetchResult();
+  }, [slug, fetchResult]);
+
+  const handleDeleteFile = async (fileId: number) => {
+    if (!token) return;
+    if (window.confirm("Are you sure you want to delete this file?")) {
+      try {
+        await apiFetch(`/api/exams/exam-file/${fileId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        toast.success("File deleted");
+        fetchResult();
+      } catch (error) {
+        console.error("Delete Error", error);
+        toast.error("Failed to delete file");
+      }
+    }
+  };
+
+  if (error && !loading) {
     return <Navigate to="/academics/examination-results" replace />;
   }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background">
+        <Header />
+        <main className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-10 w-10 animate-spin text-gold" />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!result) return <Navigate to="/academics/examination-results" replace />;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -36,7 +111,7 @@ const ExaminationResultsDetail = () => {
         </div>
 
         {/* Hero Section */}
-        <section className="relative bg-primary py-16 overflow-hidden">
+        <section className="relative bg-[#0f2d5c] py-16 overflow-hidden">
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80')] opacity-10 bg-cover bg-center" />
           <div className="container relative z-10">
             <Link 
@@ -74,13 +149,23 @@ const ExaminationResultsDetail = () => {
               <div className="lg:col-span-3">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between border-b pb-4 mb-6">
-                    <h2 className="font-serif text-2xl font-bold text-foreground">Semester-wise Results</h2>
-                    <p className="text-sm text-muted-foreground font-medium">Published on {result.date}</p>
+                    <h2 className="font-serif text-2xl font-bold text-foreground italic">Semester-wise Results</h2>
+                    <div className="flex items-center gap-4">
+                      <p className="text-sm text-muted-foreground font-medium hidden sm:block font-serif">Published on {result.result_date}</p>
+                      {token && (
+                        <Button 
+                          onClick={() => { setSelectedFile(null); setIsFileModalOpen(true); }}
+                          className="bg-gold hover:bg-navy text-white font-bold gap-2 text-xs sm:text-sm"
+                        >
+                          <Plus className="h-4 w-4" /> Add File
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {result.files?.map((file, index) => (
                     <motion.div
-                      key={index}
+                      key={file.id}
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: index * 0.05 }}
@@ -95,11 +180,29 @@ const ExaminationResultsDetail = () => {
                         </h4>
                       </div>
 
-                      <Button asChild variant="ghost" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-bold text-sm tracking-wide gap-2 group/btn">
-                        <a href={file.href} target="_blank" rel="noopener noreferrer">
-                          VIEW FILE <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1" />
-                        </a>
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {token && (
+                          <div className="flex gap-2 mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => { setSelectedFile(file); setIsFileModalOpen(true); }}
+                              className="p-2 rounded-full bg-white shadow-sm border hover:bg-gold hover:text-white transition-colors text-navy"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteFile(file.id)}
+                              className="p-2 rounded-full bg-white shadow-sm border hover:bg-red-500 hover:text-white transition-colors text-red-500"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+                        <Button asChild variant="ghost" className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-bold text-sm tracking-wide gap-2 group/btn">
+                          <a href={file.file_url} target="_blank" rel="noopener noreferrer">
+                            VIEW FILE <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1" />
+                          </a>
+                        </Button>
+                      </div>
                     </motion.div>
                   ))}
                   
@@ -115,6 +218,16 @@ const ExaminationResultsDetail = () => {
         </section>
       </main>
       <Footer />
+
+      {result && result.id && (
+        <ExamFileModal
+          isOpen={isFileModalOpen}
+          onClose={() => setIsFileModalOpen(false)}
+          resultId={result.id}
+          editData={selectedFile}
+          onSuccess={fetchResult}
+        />
+      )}
     </div>
   );
 };

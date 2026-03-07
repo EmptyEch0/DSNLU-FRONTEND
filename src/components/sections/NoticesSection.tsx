@@ -1,42 +1,18 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowRight, Bell, Calendar, FileText, AlertCircle, Briefcase, GraduationCap, BookOpen, Award } from "lucide-react";
+import { ArrowRight, Bell, Calendar, FileText, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import toast from "react-hot-toast";
+
+import { useAdmin } from "@/context/AdminContext";
 
 interface Notice {
   id: number;
   title: string;
-  date: string;
-  category: string;
-  isNew: boolean;
-  icon: typeof Bell;
+  link: string;
+  is_new: number;
+  created_at: string;
 }
-
-const notices: Notice[] = [
-  // Recruitment & Administration
-  { id: 1, title: "Recruitment Notification – Teaching Posts in Law", date: "Feb 8, 2026", category: "Recruitment", isNew: true, icon: Briefcase },
-  { id: 2, title: "Recruitment Application – Teaching Posts in Law", date: "Feb 8, 2026", category: "Recruitment", isNew: true, icon: Briefcase },
-  { id: 3, title: "Application Form – Non Teaching Staff", date: "Feb 5, 2026", category: "Recruitment", isNew: true, icon: FileText },
-  // Admissions & Programs
-  { id: 4, title: "LL.D. Notification, Regulations & Application A.Y. 2026–27", date: "Feb 3, 2026", category: "Admission", isNew: true, icon: GraduationCap },
-  { id: 5, title: "Ph.D. Notification, Regulations & Application A.Y. 2026–27", date: "Feb 3, 2026", category: "Admission", isNew: true, icon: GraduationCap },
-  { id: 6, title: "CLAT Admissions Guidelines for UG & PG – 2026–27", date: "Jan 30, 2026", category: "Admission", isNew: false, icon: GraduationCap },
-  { id: 7, title: "PGCPAITL – Post Graduate Certificate Program in AI, Technology & Law (Brochure)", date: "Jan 28, 2026", category: "Admission", isNew: false, icon: BookOpen },
-  // Academic Achievements
-  { id: 8, title: "Subject Toppers Certificates Awardees List", date: "Jan 25, 2026", category: "Academic", isNew: false, icon: Award },
-  { id: 9, title: "Gold & Silver Medal Awardees (8th–12th Convocations)", date: "Jan 25, 2026", category: "Academic", isNew: false, icon: Award },
-  { id: 10, title: "List of Candidates Graduating (UG, PG, Ph.D., LL.D.)", date: "Jan 22, 2026", category: "Academic", isNew: false, icon: GraduationCap },
-  // Research & Publications
-  { id: 11, title: "IPR Chair Guidelines", date: "Jan 20, 2026", category: "Research", isNew: false, icon: BookOpen },
-  { id: 12, title: "Application Form – IPR Chair Professor & Research Assistants", date: "Jan 20, 2026", category: "Research", isNew: false, icon: FileText },
-  { id: 13, title: "DSNLJ Call for Papers – Brochure", date: "Jan 15, 2026", category: "Research", isNew: false, icon: BookOpen },
-  // Events & Miscellaneous
-  { id: 14, title: "Convocation Circular – Additional Information", date: "Jan 12, 2026", category: "Events", isNew: false, icon: Bell },
-  { id: 15, title: "Sponsorship for Gold Medals", date: "Jan 10, 2026", category: "Events", isNew: false, icon: Award },
-  { id: 16, title: "Refund Policy", date: "Jan 8, 2026", category: "General", isNew: false, icon: FileText },
-  { id: 17, title: "Certificate Course on NDPS", date: "Jan 5, 2026", category: "Events", isNew: false, icon: BookOpen },
-  { id: 18, title: "Observation of Anti-Ragging Day", date: "Jan 3, 2026", category: "General", isNew: false, icon: Bell },
-  { id: 19, title: "Expression of Interest for Empanelment of Book Vendors (Extended till 10 June 2025)", date: "Dec 28, 2025", category: "Tender", isNew: false, icon: FileText },
-];
 
 const quickLinks = [
   { icon: FileText, label: "Academic Calendar", href: "#calendar" },
@@ -45,7 +21,105 @@ const quickLinks = [
   { icon: AlertCircle, label: "Important Dates", href: "#dates" },
 ];
 
+const API = import.meta.env.VITE_API_URL;
+
 export function NoticesSection() {
+  const { token } = useAdmin();
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Admin Editing State
+  const [showModal, setShowModal] = useState(false);
+  const [editingNotice, setEditingNotice] = useState<Notice | null>(null);
+  const [formData, setFormData] = useState({
+    title: "",
+    link: "",
+    is_new: 0,
+  });
+
+  const fetchNotices = async () => {
+    try {
+      setIsLoading(true);
+      const res = await fetch(`${API}/api/notifications`);
+      const data = await res.json();
+      setNotices(data);
+      setIsLoading(false);
+    } catch (err) {
+      console.error("Fetch Notifications Error:", err);
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotices();
+  }, []);
+
+  const handleEdit = (notice: Notice) => {
+    setEditingNotice(notice);
+    setFormData({
+      title: notice.title,
+      link: notice.link,
+      is_new: notice.is_new,
+    });
+    setShowModal(true);
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this notification?")) return;
+    
+    try {
+      const res = await fetch(`${API}/api/notifications/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success("Notification deleted successfully");
+        fetchNotices();
+      } else {
+        toast.error(data.message || "Delete failed");
+      }
+    } catch (err) {
+      toast.error("Failed to delete notification");
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const url = editingNotice
+      ? `${API}/api/notifications/${editingNotice.id}`
+      : `${API}/api/notifications`;
+
+    const method = editingNotice ? "PUT" : "POST";
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        toast.success(editingNotice ? "Updated Successfully" : "Added Successfully");
+        setShowModal(false);
+        fetchNotices();
+      } else {
+        toast.error(data.message || "Action failed");
+      }
+    } catch (err) {
+      toast.error("Network error. Please try again.");
+    }
+  };
+
   return (
     <section className="bg-primary py-20 lg:py-28">
       <div className="container">
@@ -66,6 +140,21 @@ export function NoticesSection() {
           </p>
         </motion.div>
 
+        {token && (
+          <div className="flex justify-end mb-4">
+            <button
+              onClick={() => {
+                setEditingNotice(null);
+                setFormData({ title: "", link: "", is_new: 0 });
+                setShowModal(true);
+              }}
+              className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 transition-colors"
+            >
+              + Add Notification
+            </button>
+          </div>
+        )}
+
         <div className="grid gap-12 lg:grid-cols-3">
           {/* Notices */}
           <motion.div
@@ -76,36 +165,64 @@ export function NoticesSection() {
           >
             <div className="max-h-[600px] space-y-3 overflow-y-auto pr-2">
               {notices.map((notice, index) => (
-                <motion.a
-                  key={notice.id}
-                  href="#"
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: Math.min(index * 0.05, 0.5) }}
-                  className="group flex items-start gap-4 rounded-xl border border-navy-light bg-navy-dark/50 p-4 transition-all hover:border-gold/30 hover:bg-navy-light/50"
-                >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gold/10">
-                    <notice.icon className="h-4 w-4 text-gold" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="mb-1 flex items-center gap-2">
-                      <span className="rounded bg-navy-light px-2 py-0.5 text-xs font-medium text-gold">
-                        {notice.category}
-                      </span>
-                      {notice.isNew && (
-                        <span className="rounded bg-gold px-2 py-0.5 text-xs font-bold text-navy">
+                <div key={notice.id} className="relative group">
+                  <motion.a
+                    href={notice.link || "#"}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: Math.min(index * 0.05, 0.5) }}
+                    className="flex items-start gap-4 rounded-xl border border-navy-light bg-navy-dark/50 p-4 transition-all hover:border-gold/30 hover:bg-navy-light/50"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gold/10">
+                      <Bell className="h-4 w-4 text-gold" />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      {notice.is_new === 1 && (
+                        <span className="mb-1 inline-block rounded bg-gold px-2 py-0.5 text-xs font-bold text-navy">
                           NEW
                         </span>
                       )}
+
+                      <h3 className="text-sm font-medium text-primary-foreground transition-colors group-hover:text-gold line-clamp-2">
+                        {notice.title}
+                      </h3>
+
+                      <p className="mt-0.5 text-xs text-primary-foreground/60">
+                        {new Date(notice.created_at).toLocaleDateString()}
+                      </p>
                     </div>
-                    <h3 className="text-sm font-medium text-primary-foreground transition-colors group-hover:text-gold line-clamp-2">
-                      {notice.title}
-                    </h3>
-                    <p className="mt-0.5 text-xs text-primary-foreground/60">{notice.date}</p>
-                  </div>
-                  <ArrowRight className="h-4 w-4 shrink-0 text-gold opacity-0 transition-all group-hover:opacity-100" />
-                </motion.a>
+
+                    <ArrowRight className="h-4 w-4 shrink-0 text-gold opacity-0 transition-all group-hover:opacity-100" />
+                  </motion.a>
+
+                  {token && (
+                    <div className="absolute top-2 right-2 flex gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleEdit(notice);
+                        }}
+                        className="bg-gray-200 hover:bg-gray-300 px-2 py-1 text-xs rounded text-navy transition-colors"
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleDelete(notice.id);
+                        }}
+                        className="bg-red-500 hover:bg-red-600 text-white px-2 py-1 text-xs rounded transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
 
@@ -158,6 +275,75 @@ export function NoticesSection() {
           </motion.div>
         </div>
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200]">
+          <div className="bg-white p-6 rounded-lg w-[400px] space-y-4 shadow-2xl">
+            <h2 className="text-lg font-bold text-navy">
+              {editingNotice ? "Edit Notification" : "Add Notification"}
+            </h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-navy/60 uppercase">Title</label>
+                <input
+                  type="text"
+                  placeholder="Notification Title"
+                  className="w-full border rounded p-2 text-navy focus:outline-none focus:ring-2 focus:ring-gold"
+                  value={formData.title}
+                  onChange={(e) =>
+                    setFormData({ ...formData, title: e.target.value })
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-navy/60 uppercase">Link</label>
+                <input
+                  type="text"
+                  placeholder="URL Link"
+                  className="w-full border rounded p-2 text-navy focus:outline-none focus:ring-2 focus:ring-gold"
+                  value={formData.link}
+                  onChange={(e) =>
+                    setFormData({ ...formData, link: e.target.value })
+                  }
+                />
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 text-gold focus:ring-gold"
+                  checked={formData.is_new === 1}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      is_new: e.target.checked ? 1 : 0,
+                    })
+                  }
+                />
+                <span className="text-sm text-navy font-medium">Mark as NEW</span>
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-4">
+              <button
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-navy rounded font-medium transition-colors"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleSubmit}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-medium transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

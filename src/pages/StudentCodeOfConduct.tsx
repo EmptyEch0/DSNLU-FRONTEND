@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { 
@@ -19,25 +19,102 @@ import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAdmin } from "@/context/AdminContext";
+import { toast } from "sonner";
+import { Pencil, Trash2, Plus } from "lucide-react";
 
-const sections = [
-  { id: "preamble", label: "Preamble" },
-  { id: "applicability", label: "Applicability" },
-  { id: "responsibilities", label: "Responsibilities of Students" },
-  { id: "definitions", label: "Definitions" },
-  { id: "ragging", label: "Ragging & Prohibition" },
-  { id: "sexual-harassment", label: "Sexual Harassment" },
-  { id: "hostel", label: "Hostel & Conduct" },
-  { id: "electronic-media", label: "Electronic & Media Use" },
-  { id: "disciplinary", label: "Disciplinary Process" },
-  { id: "student-council", label: "Student Council" },
-  { id: "punishments", label: "Punishments & Penalties" },
-  { id: "revision", label: "Revision of Code" },
-];
+const API = import.meta.env.VITE_API_URL;
+
+interface StudentCodeSection {
+  id: number;
+  page_id: number;
+  section_key: string;
+  title: string;
+  content: string;
+  display_order: number;
+}
+
+interface StudentCodeItem {
+  id: number;
+  section_id: number;
+  section_key: string;
+  title: string | null;
+  content: string;
+  display_order: number;
+}
+
+interface StudentCodeStep {
+  id: number;
+  page_id: number;
+  step_number: number;
+  title: string;
+  description: string;
+}
+
+interface StudentCodePenalty {
+  id: number;
+  page_id: number;
+  penalty_type: string;
+  description: string;
+  display_order: number;
+}
+
+interface StudentCodePage {
+  id: number;
+  title: string;
+  slug: string;
+  preamble?: string;
+}
+
+interface StudentCodeData {
+  page: StudentCodePage;
+  sections: StudentCodeSection[];
+  items: StudentCodeItem[];
+  steps: StudentCodeStep[];
+  penalties: StudentCodePenalty[];
+}
+
+// sections constant removed, now derived from data as sectionsPaths
+
+const STATIC_SECTION_KEYS = ["ragging", "sexual-harassment", "hostel", "electronic-media", "responsibilities", "revision"];
 
 const StudentCodeOfConduct = () => {
+  const { token } = useAdmin();
+  const [data, setData] = useState<StudentCodeData | null>(null);
   const [activeSection, setActiveSection] = useState("preamble");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Modal states
+  const [modal, setModal] = useState<{
+    type: "editSection" | "editItem" | "addItem" | "editStep" | "addStep" | "editPenalty" | "addPenalty";
+    data?: StudentCodeSection | StudentCodeItem | StudentCodeStep | StudentCodePenalty;
+    sectionKey?: string;
+  } | null>(null);
+  const [formData, setFormData] = useState<Partial<StudentCodeSection & StudentCodeItem & StudentCodeStep & StudentCodePenalty>>({});
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${API}/api/student-code`);
+      const resData = await res.json();
+      setData(resData);
+    } catch (err) {
+      console.error("Error fetching student code:", err);
+      toast.error("Failed to load student code of conduct");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const sectionsPaths = useMemo(() => data?.sections?.map(s => ({
+    id: s.section_key,
+    label: s.title
+  })) || [], [data?.sections]);
 
   useEffect(() => {
     const observerOptions = {
@@ -55,13 +132,162 @@ const StudentCodeOfConduct = () => {
     };
 
     const observer = new IntersectionObserver(observerCallback, observerOptions);
-    sections.forEach(({ id }) => {
+    sectionsPaths.forEach(({ id }) => {
       const element = document.getElementById(id);
       if (element) observer.observe(element);
     });
 
     return () => observer.disconnect();
-  }, []);
+  }, [sectionsPaths]);
+
+  const authHeaders = () => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`
+  });
+
+  const saveSection = async () => {
+    if (!modal?.data?.id) return;
+    try {
+      const res = await fetch(`${API}/api/admin/student-code/section/${modal.data.id}`, {
+        method: "PUT",
+        headers: authHeaders(),
+        body: JSON.stringify(formData)
+      });
+      if (res.ok) {
+        toast.success("Section updated successfully");
+        fetchData();
+        setModal(null);
+      }
+    } catch (err) {
+      toast.error("Failed to update section");
+    }
+  };
+
+  const saveItem = async () => {
+    try {
+      const isEdit = modal?.type === "editItem";
+      const url = isEdit 
+        ? `${API}/api/admin/student-code/item/${modal?.data?.id}` 
+        : `${API}/api/admin/student-code/item`;
+      
+      const res = await fetch(url, {
+        method: isEdit ? "PUT" : "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          ...formData,
+          section_id: (modal?.data as StudentCodeItem)?.section_id || data?.sections.find(s => s.section_key === modal?.sectionKey)?.id
+        })
+      });
+      
+      if (res.ok) {
+        toast.success(`Item ${isEdit ? "updated" : "added"} successfully`);
+        fetchData();
+        setModal(null);
+      }
+    } catch (err) {
+      toast.error("Failed to save item");
+    }
+  };
+
+  const deleteItem = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this item?")) return;
+    try {
+      const res = await fetch(`${API}/api/admin/student-code/item/${id}`, {
+        method: "DELETE",
+        headers: authHeaders()
+      });
+      if (res.ok) {
+        toast.success("Item deleted successfully");
+        fetchData();
+      }
+    } catch (err) {
+      toast.error("Failed to delete item");
+    }
+  };
+
+  const saveStep = async () => {
+    try {
+      const isEdit = modal?.type === "editStep";
+      const url = isEdit 
+        ? `${API}/api/admin/student-code/step/${modal?.data?.id}` 
+        : `${API}/api/admin/student-code/step`;
+      
+      const res = await fetch(url, {
+        method: isEdit ? "PUT" : "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          ...formData,
+          page_id: data?.page?.id
+        })
+      });
+      
+      if (res.ok) {
+        toast.success(`Step ${isEdit ? "updated" : "added"} successfully`);
+        fetchData();
+        setModal(null);
+      }
+    } catch (err) {
+      toast.error("Failed to save step");
+    }
+  };
+
+  const deleteStep = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this step?")) return;
+    try {
+      const res = await fetch(`${API}/api/admin/student-code/step/${id}`, {
+        method: "DELETE",
+        headers: authHeaders()
+      });
+      if (res.ok) {
+        toast.success("Step deleted successfully");
+        fetchData();
+      }
+    } catch (err) {
+      toast.error("Failed to delete step");
+    }
+  };
+
+  const savePenalty = async () => {
+    try {
+      const isEdit = modal?.type === "editPenalty";
+      const url = isEdit 
+        ? `${API}/api/admin/student-code/penalty/${modal?.data?.id}` 
+        : `${API}/api/admin/student-code/penalty`;
+      
+      const res = await fetch(url, {
+        method: isEdit ? "PUT" : "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({
+          ...formData,
+          page_id: data?.page?.id
+        })
+      });
+      
+      if (res.ok) {
+        toast.success(`Penalty ${isEdit ? "updated" : "added"} successfully`);
+        fetchData();
+        setModal(null);
+      }
+    } catch (err) {
+      toast.error("Failed to save penalty");
+    }
+  };
+
+  const deletePenalty = async (id: number) => {
+    if (!confirm("Are you sure you want to delete this penalty?")) return;
+    try {
+      const res = await fetch(`${API}/api/admin/student-code/penalty/${id}`, {
+        method: "DELETE",
+        headers: authHeaders()
+      });
+      if (res.ok) {
+        toast.success("Penalty deleted successfully");
+        fetchData();
+      }
+    } catch (err) {
+      toast.error("Failed to delete penalty");
+    }
+  };
 
   const scrollToSection = (id: string) => {
     const element = document.getElementById(id);
@@ -147,7 +373,7 @@ const StudentCodeOfConduct = () => {
                 <div className="sticky top-28 space-y-1">
                   <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em] mb-6 px-4">Navigation</h4>
                   <nav className="flex flex-col border-l-2 border-border/50">
-                    {sections.map((section) => (
+                    {sectionsPaths.map((section) => (
                       <button
                         key={section.id}
                         onClick={() => scrollToSection(section.id)}
@@ -173,7 +399,7 @@ const StudentCodeOfConduct = () => {
                 >
                   <span className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-gold" />
-                    {sections.find(s => s.id === activeSection)?.label || "Select Section"}
+                    {sectionsPaths.find(s => s.id === activeSection)?.label || "Select Section"}
                   </span>
                   <ChevronDown className={cn("h-4 w-4 transition-transform", isMobileMenuOpen && "rotate-180")} />
                 </button>
@@ -185,7 +411,7 @@ const StudentCodeOfConduct = () => {
                       exit={{ opacity: 0, height: 0 }}
                       className="absolute top-full left-0 right-0 bg-background border-b shadow-xl overflow-y-auto max-h-[60vh] z-40"
                     >
-                      {sections.map((section) => (
+                      {sectionsPaths.map((section) => (
                         <button
                           key={section.id}
                           onClick={() => scrollToSection(section.id)}
@@ -204,200 +430,399 @@ const StudentCodeOfConduct = () => {
 
               {/* Content Panel */}
               <div className="flex-1 max-w-4xl space-y-24 pb-32">
-                
-                {/* Preamble */}
-                <ContentSection id="preamble" title="Preamble">
-                  <div className="border-l-4 border-gold/20 pl-8">
-                    <p className="text-xl text-foreground font-serif leading-[1.8] text-justify">
-                      The Student Code of Conduct (the Code) of Damodaram Sanjivayya National Law University, Visakhapatnam, 
-                      is established to maintain a learning environment that is conducive to the growth, safety, 
-                      and holistic development of its students. As an elite institution of legal education, 
-                      DSNLU expects its students to uphold the highest standards of integrity, ethics, 
-                      and respect for the rule of law. This Code outlines the rights and responsibilities of 
-                      students, providing a framework for conduct that reflects the values of the University 
-                      and the legal profession.
-                    </p>
+                {loading && (
+                  <div className="flex flex-col items-center justify-center py-20 text-muted-foreground italic">
+                    <History className="h-12 w-12 animate-spin-slow mb-4 opacity-20" />
+                    Loading Student Code of Conduct...
                   </div>
-                </ContentSection>
+                )}
 
-                {/* Applicability */}
-                <ContentSection id="applicability" title="Applicability">
-                  <div className="space-y-6">
-                    <p className="text-lg text-muted-foreground font-medium">
-                      The Code applies to all persons in the University who are pursuing any studies or researchers or 
-                      enrolled in any of the programs of the University.
-                    </p>
-                    <ul className="grid gap-4">
-                      <ChecklistItem text="Academic course requirements and degree-related activities" />
-                      <ChecklistItem text="University sponsored activities and events (On or Off campus)" />
-                      <ChecklistItem text="Conduct involving property destruction or safety risk to University community" />
-                      <ChecklistItem text="Situations resulting in a police report or criminal investigation" />
-                    </ul>
-                    <div className="inline-block px-4 py-2 bg-secondary/80 rounded-lg text-sm font-bold text-navy border border-gold/20">
-                      Note: This Code applies to conduct occurring after 6 July 2015.
-                    </div>
-                  </div>
-                </ContentSection>
+                {!loading && !data && (
+                  <p className="text-muted-foreground italic">No data found.</p>
+                )}
 
-                {/* Responsibilities */}
-                <ContentSection id="responsibilities" title="Responsibilities of Students">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <ResponsibilityCard icon={<Scale />} title="Academic Honesty" text="Maintenance of highest levels of academic integrity in all submissions and exams." />
-                    <ResponsibilityCard icon={<Users />} title="Respect for Rights" text="Respecting the professional and personal rights of faculty, staff, and peers." />
-                    <ResponsibilityCard icon={<ShieldAlert />} title="Non-discrimination" text="Upholding a campus culture free from prejudice based on caste, religion, or gender." />
-                    <ResponsibilityCard icon={<History />} title="Constitutional Values" text="Adherence to the values enshrined in the Constitution of India." />
-                  </div>
-                </ContentSection>
+                {/* Dynamic Content Sections */}
+                {data?.sections
+                  .filter(section => {
+                    if (STATIC_SECTION_KEYS.includes(section.section_key)) return false;
+                    const hasSpecializedRendering = ["applicability", "definitions", "disciplinary", "punishments"].includes(section.section_key);
+                    return section.content || hasSpecializedRendering;
+                  })
+                  .map((section) => {
+                    const items = data.items.filter(i => i.section_key === section.section_key);
 
-                {/* Definitions */}
-                <ContentSection id="definitions" title="Definitions">
-                  <div className="space-y-2">
-                    <p className="text-muted-foreground mb-8 text-lg italic">Click on terms below to view detailed legal definitions.</p>
-                    <div className="rounded-2xl border overflow-hidden">
-                      <DefinitionsAccordion title="Academic Misconduct" content="Any action or attempted action that may result in creating an unfair academic advantage for oneself or an unfair academic advantage or disadvantage for any other member or members of the University community." />
-                      <DefinitionsAccordion title="Cheating" content="Using unauthorized materials, information, or study aids in any academic exercise; or failing to follow the rules of any academic exercise." />
-                      <DefinitionsAccordion title="Plagiarism" content="The practice of taking someone else's work or ideas and passing them off as one's own without proper attribution, whether intentional or unintentional." />
-                      <DefinitionsAccordion title="Harassment" content="Any unwelcome conduct that is offensive, humiliating, or intimidating to another person and interferes with their education or employment." />
-                      <DefinitionsAccordion title="Officers of the University" content="Includes the Vice-Chancellor, Registrar, Finance Officer, and other administrative staff designated by the University statutes." />
-                      <DefinitionsAccordion title="University Premises" content="Buildings or grounds owned, leased, operated, controlled, or supervised by the University, including digital networks and platforms." />
-                    </div>
-                  </div>
-                </ContentSection>
+                  return (
+                    <ContentSection 
+                      key={section.id} 
+                      id={section.section_key} 
+                      title={section.title}
+                      onEdit={token ? () => {
+                        setModal({ type: "editSection", data: section });
+                        setFormData({ title: section.title, content: section.content });
+                      } : undefined}
+                    >
+                      {/* Section Content (HTML support) - skip for sections that have their own specialized rendering */}
+                      {section.content && !["applicability", "definitions"].includes(section.section_key) && (
+                         <div 
+                           className={cn(
+                             "text-foreground leading-relaxed text-lg",
+                             section.section_key === "preamble" && "border-l-4 border-gold/20 pl-8 text-xl font-serif text-justify"
+                           )}
+                           dangerouslySetInnerHTML={{ __html: section.content }} 
+                         />
+                      )}
 
-                {/* Ragging */}
-                <ContentSection id="ragging" title="Ragging & Prohibition">
-                  <div className="rounded-3xl border-2 border-dashed border-red-200 bg-red-50/30 p-8 space-y-8">
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-lg overflow-hidden animate-pulse">
-                        <AlertTriangle className="h-6 w-6" />
-                      </div>
-                      <h3 className="text-2xl font-bold text-red-700 uppercase tracking-tight">Ragging is Strictly Prohibited</h3>
-                    </div>
-                    
-                    <div className="grid gap-6 md:grid-cols-2">
-                      <div className="space-y-4">
-                        <p className="font-bold text-navy flex items-center gap-2">
-                          <Scale className="h-4 w-4 text-gold" /> Statutory Regulations:
-                        </p>
-                        <ul className="space-y-2 text-sm text-foreground/80 font-medium">
-                          <li>• UGC Regulations on Curbing Ragging, 2009</li>
-                          <li>• Andhra Pradesh Prohibition of Ragging Act, 1997</li>
-                          <li>• Directions of the Hon'ble Supreme Court of India</li>
-                        </ul>
-                      </div>
-                      <div className="rounded-2xl bg-white/50 border border-red-100 p-6">
-                        <p className="font-bold text-red-800 mb-3 flex items-center gap-2 italic">
-                          <ShieldAlert className="h-4 w-4" /> Penalties include:
-                        </p>
-                        <ul className="space-y-2 text-sm font-bold text-red-700">
-                          <li className="flex items-center gap-2 text-navy"><CheckCircle2 className="h-4 w-4 text-red-600" /> Expulsion from University</li>
-                          <li className="flex items-center gap-2 text-navy"><CheckCircle2 className="h-4 w-4 text-red-600" /> Fine up to ₹10,000</li>
-                          <li className="flex items-center gap-2 text-navy"><CheckCircle2 className="h-4 w-4 text-red-600" /> Suspension from Classes</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </ContentSection>
-
-                {/* Sexual Harassment */}
-                <ContentSection id="sexual-harassment" title="Prevention of Sexual Harassment">
-                  <div className="rounded-3xl border-2 border-purple-200 bg-purple-50/30 p-8">
-                    <div className="flex gap-6 flex-col md:flex-row">
-                      <div className="h-16 w-16 shrink-0 rounded-2xl bg-purple-600 flex items-center justify-center text-white">
-                        <Scale className="h-8 w-8" />
-                      </div>
-                      <div className="space-y-4">
-                        <p className="text-lg text-purple-900 font-medium leading-relaxed">
-                          DSNLU is committed to maintaining a safe environment. All forms of sexual harassment are strictly prohibited 
-                          under the <span className="font-bold border-b border-purple-300">Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013</span>.
-                        </p>
-                        <div className="flex flex-wrap gap-4">
-                          <div className="px-4 py-2 bg-purple-100 rounded-lg text-xs font-bold text-purple-700 border border-purple-200 uppercase tracking-wider">
-                            Sexual Harassment Redressal Committee
+                      {/* Specialized Content for specific sections */}
+                      
+                      {/* Applicability Items */}
+                      {section.section_key === "applicability" && (
+                        <div className="mt-8 space-y-6">
+                          <div className="flex items-center justify-between gap-4 mb-4">
+                            <h4 className="text-sm font-bold text-navy uppercase tracking-wider">Applicability Items</h4>
+                            {token && (
+                              <button
+                                onClick={() => {
+                                  setModal({ type: "addItem", sectionKey: section.section_key });
+                                  setFormData({ title: "", content: "", display_order: items.length + 1 });
+                                }}
+                                className="px-3 py-1 bg-navy text-gold rounded-full flex items-center gap-2 font-bold text-[10px]"
+                              >
+                                <Plus className="h-3 w-3" />
+                                Add Item
+                              </button>
+                            )}
                           </div>
-                          <div className="px-4 py-2 bg-purple-100 rounded-lg text-xs font-bold text-purple-700 border border-purple-200 uppercase tracking-wider">
-                            Zero Tolerance Policy
+                          <div className="grid gap-4">
+                            {items.length === 0 && <p className="text-sm text-muted-foreground italic">No specific items listed.</p>}
+                            {items.map(item => (
+                              <div key={item.id} className="group relative">
+                                <ChecklistItem text={item.content} />
+                                {token && (
+                                  <div className="absolute right-0 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-2 bg-background/80 p-1 rounded-lg">
+                                    <button 
+                                      onClick={() => {
+                                        setModal({ type: "editItem", data: item });
+                                        setFormData({ title: item.title, content: item.content, display_order: item.display_order });
+                                      }}
+                                      className="p-1 hover:text-gold transition-colors"
+                                    >
+                                      <Pencil className="h-3 w-3" />
+                                    </button>
+                                    <button onClick={() => deleteItem(item.id)} className="p-1 hover:text-red-500 transition-colors">
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Definitions Accordion */}
+                      {section.section_key === "definitions" && (
+                        <div className="mt-8 space-y-4">
+                           <div className="flex items-center justify-between gap-4">
+                            <p className="text-muted-foreground text-sm italic">Click on terms below to view detailed legal definitions.</p>
+                            {token && (
+                              <button
+                                onClick={() => {
+                                  setModal({ type: "addItem", sectionKey: section.section_key });
+                                  setFormData({ title: "", content: "", display_order: items.length + 1 });
+                                }}
+                                className="px-3 py-1 bg-navy text-gold rounded-full flex items-center gap-2 font-bold text-[10px]"
+                              >
+                                <Plus className="h-3 w-3" />
+                                Add Definition
+                              </button>
+                            )}
+                          </div>
+                          <div className="rounded-2xl border overflow-hidden">
+                            {items.length === 0 && <p className="p-6 text-sm text-muted-foreground italic text-center">No definitions found.</p>}
+                            {items.map(def => (
+                              <div key={def.id} className="relative group">
+                                <DefinitionsAccordion title={def.title || ""} content={def.content} />
+                                {token && (
+                                  <div className="absolute top-6 right-12 hidden group-hover:flex items-center gap-2">
+                                    <button 
+                                      onClick={() => {
+                                        setModal({ type: "editItem", data: def });
+                                        setFormData({ title: def.title, content: def.content, display_order: def.display_order });
+                                      }}
+                                      className="p-1 hover:text-gold transition-colors bg-white/80 rounded"
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </button>
+                                    <button onClick={() => deleteItem(def.id)} className="p-1 hover:text-red-500 transition-colors bg-white/80 rounded">
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Ragging specific additions if needed (hardcoded base + dynamic footer maybe) */}
+                      {/* ... other specialized sections ... */}
+
+                      {/* Disciplinary Process Timeline */}
+                      {section.section_key === "disciplinary" && (
+                        <div className="mt-12 space-y-8">
+                           <div className="flex items-center justify-between gap-4">
+                            <h4 className="text-lg font-bold text-navy">Timeline of Process</h4>
+                            {token && (
+                              <button
+                                onClick={() => {
+                                  setModal({ type: "addStep" });
+                                  setFormData({ step_number: data.steps.length + 1, title: "", description: "" });
+                                }}
+                                className="px-3 py-1 bg-navy text-gold rounded-full flex items-center gap-2 font-bold text-[10px]"
+                              >
+                                <Plus className="h-3 w-3" />
+                                Add Step
+                              </button>
+                            )}
+                          </div>
+                          <div className="relative pl-12 space-y-12 before:content-[''] before:absolute before:left-[1.35rem] before:top-4 before:bottom-4 before:w-0.5 before:bg-gradient-to-b before:from-gold before:to-gold/10">
+                            {data.steps.map(step => (
+                              <div key={step.id} className="relative group">
+                                <TimelineItem step={step.step_number.toString()} title={step.title} text={step.description} />
+                                {token && (
+                                  <div className="absolute right-0 top-0 hidden group-hover:flex items-center gap-2">
+                                    <button 
+                                      onClick={() => {
+                                        setModal({ type: "editStep", data: step });
+                                        setFormData({ step_number: step.step_number, title: step.title, description: step.description });
+                                      }}
+                                      className="p-1 hover:text-gold transition-colors"
+                                    >
+                                      <Pencil className="h-4 w-4" />
+                                    </button>
+                                    <button onClick={() => deleteStep(step.id)} className="p-1 hover:text-red-500 transition-colors">
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Punishments Table */}
+                      {section.section_key === "punishments" && (
+                        <div className="mt-12 space-y-4">
+                           <div className="flex items-center justify-between gap-4">
+                            <h4 className="text-lg font-bold text-navy">Schedule of Penalties</h4>
+                            {token && (
+                              <button
+                                onClick={() => {
+                                  setModal({ type: "addPenalty" });
+                                  setFormData({ penalty_type: "", description: "", display_order: data.penalties.length + 1 });
+                                }}
+                                className="px-3 py-1 bg-navy text-gold rounded-full flex items-center gap-2 font-bold text-[10px]"
+                              >
+                                <Plus className="h-3 w-3" />
+                                Add Penalty
+                              </button>
+                            )}
+                          </div>
+                          <div className="rounded-3xl border bg-card overflow-hidden shadow-elegant">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className="bg-navy text-white font-serif">
+                                  <th className="px-8 py-5 font-bold uppercase tracking-wider text-sm">Penalty Type</th>
+                                  <th className="px-8 py-5 font-bold uppercase tracking-wider text-sm">Description</th>
+                                  {token && <th className="px-4 py-5 w-24">Actions</th>}
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y text-foreground">
+                                {data.penalties.map(p => (
+                                  <tr key={p.id} className="hover:bg-gold/5 transition-colors group">
+                                    <PenaltyRow type={p.penalty_type} desc={p.description} color={p.display_order % 2 === 0 ? "bg-red-50/10" : ""} />
+                                    {token && (
+                                      <td className="px-4 py-5">
+                                        <div className="flex items-center gap-2">
+                                          <button 
+                                            onClick={() => {
+                                              setModal({ type: "editPenalty", data: p });
+                                              setFormData({ penalty_type: p.penalty_type, description: p.description, display_order: p.display_order });
+                                            }}
+                                            className="p-1 text-gold hover:scale-110 transition-transform"
+                                          >
+                                            <Pencil className="h-4 w-4" />
+                                          </button>
+                                          <button onClick={() => deletePenalty(p.id)} className="p-1 text-red-500 hover:scale-110 transition-transform">
+                                            <Trash2 className="h-4 w-4" />
+                                          </button>
+                                        </div>
+                                      </td>
+                                    )}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </ContentSection>
+                  );
+                })}
+
+                {/* Structural / Mixed Sections - Keep these if they aren't fully in DB yet */}
+                {!loading && (
+                  <>
+                    {/* Responsibilities */}
+                    <ContentSection 
+                      id="responsibilities" 
+                      title="Responsibilities of Students"
+                      onEdit={token ? () => {
+                        const s = data?.sections.find(s => s.section_key === "responsibilities");
+                        if (s) { setModal({ type: "editSection", data: s }); setFormData({ title: s.title, content: s.content }); }
+                      } : undefined}
+                    >
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <ResponsibilityCard icon={<Scale />} title="Academic Honesty" text="Maintenance of highest levels of academic integrity in all submissions and exams." />
+                        <ResponsibilityCard icon={<Users />} title="Respect for Rights" text="Respecting the professional and personal rights of faculty, staff, and peers." />
+                        <ResponsibilityCard icon={<ShieldAlert />} title="Non-discrimination" text="Upholding a campus culture free from prejudice based on caste, religion, or gender." />
+                        <ResponsibilityCard icon={<History />} title="Constitutional Values" text="Adherence to the values enshrined in the Constitution of India." />
+                      </div>
+                    </ContentSection>
+
+                    {/* Ragging (Hardcoded for style) */}
+                    <ContentSection 
+                      id="ragging" 
+                      title="Ragging & Prohibition"
+                      onEdit={token ? () => {
+                        const s = data?.sections.find(s => s.section_key === "ragging");
+                        if (s) { setModal({ type: "editSection", data: s }); setFormData({ title: s.title, content: s.content }); }
+                      } : undefined}
+                    >
+                       <div className="rounded-3xl border-2 border-dashed border-red-200 bg-red-50/30 p-8 space-y-8">
+                        <div className="flex items-center gap-4">
+                          <div className="h-12 w-12 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-lg overflow-hidden animate-pulse">
+                            <AlertTriangle className="h-6 w-6" />
+                          </div>
+                          <h3 className="text-2xl font-bold text-red-700 uppercase tracking-tight">Ragging is Strictly Prohibited</h3>
+                        </div>
+                        <div className="grid gap-6 md:grid-cols-2">
+                          <div className="space-y-4">
+                            <p className="font-bold text-navy flex items-center gap-2 text-sm italic">
+                              <Scale className="h-4 w-4 text-gold" /> Statutory Regulations:
+                            </p>
+                            <ul className="space-y-2 text-xs text-foreground/80 font-medium">
+                              <li>• UGC Regulations on Curbing Ragging, 2009</li>
+                              <li>• Andhra Pradesh Prohibition of Ragging Act, 1997</li>
+                              <li>• Directions of the Hon'ble Supreme Court of India</li>
+                            </ul>
+                          </div>
+                          <div className="rounded-2xl bg-white/50 border border-red-100 p-6">
+                            <p className="font-bold text-red-800 mb-3 flex items-center gap-2 italic text-sm">
+                              <ShieldAlert className="h-4 w-4" /> Penalties include:
+                            </p>
+                            <ul className="space-y-2 text-xs font-bold text-red-700">
+                              <li className="flex items-center gap-2 text-navy"><CheckCircle2 className="h-3 w-3 text-red-600" /> Expulsion from University</li>
+                              <li className="flex items-center gap-2 text-navy"><CheckCircle2 className="h-3 w-3 text-red-600" /> Fine up to ₹10,000</li>
+                              <li className="flex items-center gap-2 text-navy"><CheckCircle2 className="h-3 w-3 text-red-600" /> Suspension from Classes</li>
+                            </ul>
                           </div>
                         </div>
                       </div>
+                    </ContentSection>
+
+                    {/* Sexual Harassment */}
+                    <ContentSection 
+                      id="sexual-harassment" 
+                      title="Prevention of Sexual Harassment"
+                      onEdit={token ? () => {
+                        const s = data?.sections.find(s => s.section_key === "sexual-harassment");
+                        if (s) { setModal({ type: "editSection", data: s }); setFormData({ title: s.title, content: s.content }); }
+                      } : undefined}
+                    >
+                      <div className="rounded-3xl border-2 border-purple-200 bg-purple-50/30 p-8">
+                        <div className="flex gap-6 flex-col md:flex-row">
+                          <div className="h-16 w-16 shrink-0 rounded-2xl bg-purple-600 flex items-center justify-center text-white">
+                            <Scale className="h-8 w-8" />
+                          </div>
+                          <div className="space-y-4">
+                            <p className="text-lg text-purple-900 font-medium leading-relaxed">
+                              DSNLU is committed to maintaining a safe environment. All forms of sexual harassment are strictly prohibited 
+                              under the <span className="font-bold border-b border-purple-300">Sexual Harassment of Women at Workplace (Prevention, Prohibition and Redressal) Act, 2013</span>.
+                            </p>
+                            <div className="flex flex-wrap gap-4">
+                              <div className="px-4 py-2 bg-purple-100 rounded-lg text-xs font-bold text-purple-700 border border-purple-200 uppercase tracking-wider">
+                                Sexual Harassment Redressal Committee
+                              </div>
+                              <div className="px-4 py-2 bg-purple-100 rounded-lg text-xs font-bold text-purple-700 border border-purple-200 uppercase tracking-wider">
+                                Zero Tolerance Policy
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </ContentSection>
+
+                    {/* Prohibitions */}
+                    <div id="electronic-media" className="grid gap-6 md:grid-cols-3 scroll-mt-32">
+                         <div className="md:col-span-3">
+                           <h3 className="text-xl font-bold text-navy mb-2 uppercase tracking-wider">General Prohibitions</h3>
+                           <div className="h-0.5 w-full bg-gradient-to-r from-gold via-gold/10 to-transparent mb-6" />
+                         </div>
+                         <ProhibitionTile icon={<AlertTriangle />} title="Tobacco Free" text="DSNLU is a strictly non-smoking campus. Tobacco use is banned." color="neutral" />
+                         <ProhibitionTile icon={<AlertTriangle />} title="No Alcohol" text="Possession or consumption of alcohol on campus is a major offence." color="neutral" />
+                         <ProhibitionTile icon={<AlertTriangle />} title="No Narcotics" text="Possession or distribution of banned drugs leads to criminal prosecution." color="neutral" />
                     </div>
-                  </div>
-                </ContentSection>
 
-                {/* Prohibitions */}
-                <div className="grid gap-6 md:grid-cols-3">
-                   <div className="md:col-span-3">
-                     <h3 className="text-xl font-bold text-navy mb-6">General Prohibitions</h3>
-                   </div>
-                   <ProhibitionTile icon={<AlertTriangle />} title="Tobacco Free" text="DSNLU is a strictly non-smoking campus. Tobacco use is banned." color="neutral" />
-                   <ProhibitionTile icon={<AlertTriangle />} title="No Alcohol" text="Possession or consumption of alcohol on campus is a major offence." color="neutral" />
-                   <ProhibitionTile icon={<AlertTriangle />} title="No Narcotics" text="Possession or distribution of banned drugs leads to criminal prosecution." color="neutral" />
-                </div>
+                    {/* Hostel */}
+                    <ContentSection 
+                      id="hostel" 
+                      title="Hostel & Residential Conduct"
+                      onEdit={token ? () => {
+                        const s = data?.sections.find(s => s.section_key === "hostel");
+                        if (s) { setModal({ type: "editSection", data: s }); setFormData({ title: s.title, content: s.content }); }
+                      } : undefined}
+                    >
+                      <div className="grid gap-8 md:grid-cols-2">
+                        <div className="space-y-4">
+                          <h4 className="font-bold text-navy text-lg">Key Regulations</h4>
+                          <ul className="space-y-4">
+                            <HostelRule title="Curfew Timing" text="All students must return to their respective hostels by 9:00 PM." />
+                            <HostelRule title="Restricted Access" text="Male students are prohibited in Girls' Hostels and vice versa at all times." />
+                            <HostelRule title="Leave Policy" text="Official leave permission is mandatory for staying outside the hostel overnight." />
+                          </ul>
+                        </div>
+                        <div className="bg-secondary/30 rounded-3xl p-8 border border-border/50">
+                          <Info className="h-8 w-8 text-gold mb-4" />
+                          <p className="text-foreground leading-relaxed font-medium italic text-sm">
+                            "The hostel is an extension of the academic environment. Conduct reflecting the dignity of the profession is expected from every resident."
+                          </p>
+                        </div>
+                      </div>
+                    </ContentSection>
 
-                {/* Hostel */}
-                <ContentSection id="hostel" title="Hostel & Residential Conduct">
-                  <div className="grid gap-8 md:grid-cols-2">
-                    <div className="space-y-4">
-                      <h4 className="font-bold text-navy text-lg">Key Regulations</h4>
-                      <ul className="space-y-4">
-                        <HostelRule title="Curfew Timing" text="All students must return to their respective hostels by 9:00 PM." />
-                        <HostelRule title="Restricted Access" text="Male students are prohibited in Girls' Hostels and vice versa at all times." />
-                        <HostelRule title="Leave Policy" text="Official leave permission is mandatory for staying outside the hostel overnight." />
-                      </ul>
-                    </div>
-                    <div className="bg-secondary/30 rounded-3xl p-8 border border-border/50">
-                      <Info className="h-8 w-8 text-gold mb-4" />
-                      <p className="text-foreground leading-relaxed font-medium italic">
-                        "The hostel is an extension of the academic environment. Conduct reflecting the dignity of the profession is expected from every resident."
-                      </p>
-                    </div>
-                  </div>
-                </ContentSection>
-
-                {/* Disciplinary Process */}
-                <ContentSection id="disciplinary" title="Disciplinary Process">
-                  <div className="relative mt-12 pl-12 space-y-12 before:content-[''] before:absolute before:left-[1.35rem] before:top-4 before:bottom-4 before:w-0.5 before:bg-gradient-to-b before:from-gold before:to-gold/10">
-                    <TimelineItem step="1" title="Complaint" text="Initial report of misconduct filed by any member of the community." />
-                    <TimelineItem step="2" title="Committee Referral" text="The Vice-Chancellor refers the matter to the Disciplinary Committee." />
-                    <TimelineItem step="3" title="Review & Hearing" text="A confidential review and opportunity for the student to respond." />
-                    <TimelineItem step="4" title="Final Decision" text="Committee submits recommendations for the Vice-Chancellor's approval." />
-                    <TimelineItem step="5" title="Review Petition" text="A provision for review of the decision under specified grounds." />
-                  </div>
-                </ContentSection>
-
-                {/* Punishments */}
-                <ContentSection id="punishments" title="Punishments & Penalties">
-                  <div className="rounded-3xl border bg-card overflow-hidden shadow-elegant">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-navy text-white font-serif">
-                          <th className="px-8 py-5 font-bold uppercase tracking-wider text-sm">Penalty Type</th>
-                          <th className="px-8 py-5 font-bold uppercase tracking-wider text-sm">Description</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y text-foreground">
-                        <PenaltyRow type="Warning" desc="A written reprimand placed in the student's personal record." />
-                        <PenaltyRow type="Suspension" desc="Temporary removal from classes or University services for a fixed period." color="bg-red-50" />
-                        <PenaltyRow type="Monetary Fine" desc="Penalty payment depending on the severity of the offence." />
-                        <PenaltyRow type="Restitution" desc="Compensation for loss, damage, or injury to University property." />
-                        <PenaltyRow type="Rustication" desc="Permanent dismissal from the University, resulting in loss of admission." color="bg-red-50" />
-                      </tbody>
-                    </table>
-                  </div>
-                </ContentSection>
-
-                {/* Revision */}
-                <ContentSection id="revision" title="Revision of Code">
-                  <div className="bg-navy rounded-3xl p-10 text-center relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 h-32 w-32 bg-gold/10 rounded-full blur-3xl -mr-16 -mt-16 transition-all duration-700 group-hover:scale-150" />
-                    <History className="h-10 w-10 text-gold mx-auto mb-6" />
-                    <h3 className="text-2xl font-serif font-bold text-white mb-4">Periodic Review</h3>
-                    <p className="text-white/70 max-w-2xl mx-auto leading-relaxed text-lg">
-                      The Code shall be reviewed periodically by the Academic Council to ensure consistency with 
-                      national regulations, judicial pronouncements, and international best practices in legal education.
-                    </p>
-                  </div>
-                </ContentSection>
+                    {/* Revision */}
+                    <ContentSection 
+                      id="revision" 
+                      title="Revision of Code"
+                      onEdit={token ? () => {
+                        const s = data?.sections.find(s => s.section_key === "revision");
+                        if (s) { setModal({ type: "editSection", data: s }); setFormData({ title: s.title, content: s.content }); }
+                      } : undefined}
+                    >
+                      <div className="bg-navy rounded-3xl p-10 text-center relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 h-32 w-32 bg-gold/10 rounded-full blur-3xl -mr-16 -mt-16 transition-all duration-700 group-hover:scale-150" />
+                        <History className="h-10 w-10 text-gold mx-auto mb-6" />
+                        <h3 className="text-2xl font-serif font-bold text-white mb-4 uppercase tracking-widest">Periodic Review</h3>
+                        <p className="text-white/70 max-w-2xl mx-auto leading-relaxed text-lg italic">
+                          The Code shall be reviewed periodically by the Academic Council to ensure consistency with 
+                          national regulations, judicial pronouncements, and international best practices in legal education.
+                        </p>
+                      </div>
+                    </ContentSection>
+                  </>
+                )}
 
               </div>
             </div>
@@ -405,13 +830,174 @@ const StudentCodeOfConduct = () => {
         </section>
       </main>
       <Footer />
+
+      {/* Admin Modals */}
+      <AnimatePresence>
+        {modal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-navy/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden border border-gold/20"
+            >
+              <div className="bg-navy p-6 flex justify-between items-center bg-gradient-to-r from-navy to-navy/90">
+                <h3 className="text-xl font-bold text-gold uppercase tracking-wider">
+                  {modal.type.includes("edit") ? "Edit" : "Add"} {modal.type.includes("Section") ? "Section" : modal.type.includes("Item") ? "Item/Definition" : modal.type.includes("Step") ? "Process Step" : "Penalty"}
+                </h3>
+                <button onClick={() => setModal(null)} className="text-white/60 hover:text-white transition-colors">
+                  <Plus className="h-6 w-6 rotate-45" />
+                </button>
+              </div>
+
+              <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                {modal.type.includes("Section") ? (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1">Section Title</label>
+                      <input
+                        type="text"
+                        value={formData.title || ""}
+                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                        className="w-full px-5 py-4 bg-secondary/30 rounded-2xl border-2 border-transparent focus:border-gold outline-none transition-all font-medium"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1">Description / Content</label>
+                      <textarea
+                        rows={6}
+                        value={formData.content || ""}
+                        onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                        className="w-full px-5 py-4 bg-secondary/30 rounded-2xl border-2 border-transparent focus:border-gold outline-none transition-all font-medium resize-none text-sm leading-relaxed"
+                        placeholder="Supports HTML tags for formatting..."
+                      />
+                    </div>
+                  </>
+                ) : modal.type.includes("Item") ? (
+                   <>
+                    <div className="space-y-2">
+                       <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1">Title (Optional for lists, Required for Definitions)</label>
+                       <input
+                         type="text"
+                         value={formData.title || ""}
+                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                         className="w-full px-5 py-4 bg-secondary/30 rounded-2xl border-2 border-transparent focus:border-gold outline-none transition-all font-medium"
+                       />
+                     </div>
+                     <div className="space-y-2">
+                       <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1">Content</label>
+                       <textarea
+                         rows={4}
+                         value={formData.content || ""}
+                         onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                         className="w-full px-5 py-4 bg-secondary/30 rounded-2xl border-2 border-transparent focus:border-gold outline-none transition-all font-medium resize-none text-sm leading-relaxed"
+                       />
+                     </div>
+                     <div className="space-y-2">
+                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1">Display Order</label>
+                        <input
+                          type="number"
+                          value={formData.display_order || 0}
+                          onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) })}
+                          className="w-full px-5 py-4 bg-secondary/30 rounded-2xl border-2 border-transparent focus:border-gold outline-none transition-all font-medium"
+                        />
+                      </div>
+                   </>
+                ) : modal.type.includes("Step") ? (
+                  <>
+                    <div className="grid grid-cols-4 gap-6">
+                      <div className="space-y-2 col-span-1">
+                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1">Step #</label>
+                        <input
+                          type="number"
+                          value={formData.step_number || 0}
+                          onChange={(e) => setFormData({ ...formData, step_number: parseInt(e.target.value) })}
+                          className="w-full px-5 py-4 bg-secondary/30 rounded-2xl border-2 border-transparent focus:border-gold outline-none transition-all text-center font-bold"
+                        />
+                      </div>
+                      <div className="space-y-2 col-span-3">
+                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1">Step Title</label>
+                        <input
+                          type="text"
+                          value={formData.title || ""}
+                          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                          className="w-full px-5 py-4 bg-secondary/30 rounded-2xl border-2 border-transparent focus:border-gold outline-none transition-all font-medium"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1">Description</label>
+                      <textarea
+                        rows={4}
+                        value={formData.description || ""}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        className="w-full px-5 py-4 bg-secondary/30 rounded-2xl border-2 border-transparent focus:border-gold outline-none transition-all font-medium resize-none text-sm leading-relaxed"
+                      />
+                    </div>
+                  </>
+                ) : (
+                   <>
+                    <div className="space-y-2">
+                       <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1">Penalty Type</label>
+                       <input
+                         type="text"
+                         value={formData.penalty_type || ""}
+                         onChange={(e) => setFormData({ ...formData, penalty_type: e.target.value })}
+                         className="w-full px-5 py-4 bg-secondary/30 rounded-2xl border-2 border-transparent focus:border-gold outline-none transition-all font-medium"
+                       />
+                     </div>
+                     <div className="space-y-2">
+                       <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1">Description</label>
+                       <textarea
+                         rows={4}
+                         value={formData.description || ""}
+                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                         className="w-full px-5 py-4 bg-secondary/30 rounded-2xl border-2 border-transparent focus:border-gold outline-none transition-all font-medium resize-none text-sm leading-relaxed"
+                       />
+                     </div>
+                     <div className="space-y-2">
+                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1">Display Order</label>
+                        <input
+                          type="number"
+                          value={formData.display_order || 0}
+                          onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) })}
+                          className="w-full px-5 py-4 bg-secondary/30 rounded-2xl border-2 border-transparent focus:border-gold outline-none transition-all font-medium"
+                        />
+                      </div>
+                   </>
+                )}
+              </div>
+
+              <div className="p-8 bg-secondary/10 flex justify-end gap-3 rounded-b-3xl">
+                <button
+                  onClick={() => setModal(null)}
+                  className="px-8 py-3 rounded-xl font-bold text-muted-foreground hover:bg-secondary/40 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (modal.type.includes("Section")) saveSection();
+                    else if (modal.type.includes("Item")) saveItem();
+                    else if (modal.type.includes("Step")) saveStep();
+                    else if (modal.type.includes("Penalty")) savePenalty();
+                  }}
+                  className="px-8 py-3 rounded-xl font-bold bg-navy text-gold hover:bg-navy/90 hover:shadow-lg transition-all"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
 
 // --- Sub-components ---
 
-const ContentSection = ({ id, title, children }: { id: string; title: string; children: React.ReactNode }) => (
+const ContentSection = ({ id, title, children, onEdit }: { id: string; title: string; children: React.ReactNode; onEdit?: () => void }) => (
   <motion.section 
     id={id}
     initial={{ opacity: 0, y: 30 }}
@@ -420,8 +1006,16 @@ const ContentSection = ({ id, title, children }: { id: string; title: string; ch
     className="scroll-mt-32"
   >
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between gap-4">
         <h2 className="font-serif text-3xl font-bold text-navy uppercase tracking-wider">{title}</h2>
+        {onEdit && (
+          <button 
+            onClick={onEdit}
+            className="p-1.5 hover:bg-gold/10 text-gold rounded-lg transition-colors bg-navy"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+        )}
       </div>
       <div className="h-0.5 w-full bg-gradient-to-r from-gold via-gold/10 to-transparent mb-4" />
       <div>{children}</div>

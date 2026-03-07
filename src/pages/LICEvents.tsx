@@ -1,66 +1,112 @@
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { ChevronRight, Calendar, User, ExternalLink, Briefcase } from "lucide-react";
+import { ChevronRight, Calendar, User, ExternalLink, Briefcase, X } from "lucide-react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
+import { useAdmin } from "@/context/AdminContext";
 
-const events = [
-  {
-    title: "National Level Competition on Crime Scene Investigation (CSI – 6.0)",
-    date: "18th March 2025",
-    description: "The flagship CSI competition returns for its 6th edition, bringing together students for a hands-on experience in forensic investigation and criminal law application.",
-    category: "Competition"
-  },
-  {
-    title: "National Level Competition on Crime Scene Investigation (CSI – 5.0)",
-    date: "23rd March 2024",
-    description: "The 5th edition of CSI challenged participants with complex crime scenarios, emphasizing the importance of evidentiary value and meticulous investigation.",
-    category: "Competition"
-  },
-  {
-    title: "World Entrepreneurship Day - Collage Making Competition",
-    subtitle: "“MAKE IN INDIA”",
-    date: "21st August 2023",
-    description: "Celebrating innovation and indigenous entrepreneurship through a creative collage-making event focused on the Make in India initiative.",
-    category: "Program"
-  },
-  {
-    title: "VIBODHA Workshop",
-    subtitle: "Two-Day National Workshop on Legal Entrepreneurship",
-    date: "18th & 19th March 2023",
-    description: "A comprehensive national workshop aimed at inspiring legal students to explore entrepreneurial paths within the legal industry.",
-    category: "Workshop"
-  },
-  {
-    title: "National Level Competition on Crime Scene Investigation (CSI – 4.0)",
-    date: "24th September 2022",
-    description: "Conducted the 4th edition of our signature CSI competition, fostering practical legal skills and forensic awareness.",
-    category: "Competition"
-  },
-  {
-    title: "Forensic Science and Its Evidentiary Value",
-    subtitle: "Two-Day Online Workshop",
-    date: "25th & 26th September 2021",
-    description: "Deep-diving into the scientific and legal aspects of forensic evidence in the judicial process.",
-    category: "Workshop"
-  },
-  {
-    title: "Legal Profession and Practice – Challenges and Prospects",
-    subtitle: "One-Day Online Workshop in association with DSNLU Alumni Association",
-    date: "10th April 2021",
-    description: "A bridge-building event where alumni shared insights into the practical challenges and opportunities in the legal profession today.",
-    category: "Workshop"
-  },
-  {
-    title: "Advocacy Workshops",
-    subtitle: "Trial Advocacy Series",
-    date: "2018 - 2019",
-    description: "Conducted intensive workshops on Criminal Trial Advocacy (October 2018) and Civil Trial Advocacy (March 2019) to enhance courtroom skills.",
-    category: "Training"
-  }
-];
+const API = import.meta.env.VITE_API_URL;
+
+interface Event {
+  id: number;
+  title: string;
+  subtitle?: string;
+  description: string;
+  category: string;
+  event_date_label: string;
+}
 
 const LICEvents = () => {
+  const { token } = useAdmin();
+
+  const [events, setEvents] = useState<Event[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+
+  const [formTitle, setFormTitle] = useState("");
+  const [formSubtitle, setFormSubtitle] = useState("");
+  const [formDescription, setFormDescription] = useState("");
+  const [formCategory, setFormCategory] = useState("");
+  const [formDateLabel, setFormDateLabel] = useState("");
+
+  const fetchEvents = async () => {
+    try {
+      const res = await fetch(`${API}/api/centres/5/events`);
+      const data = await res.json();
+      setEvents(data.events || []);
+    } catch (error) {
+      console.error("Error fetching LIC events:", error);
+      setEvents([]);
+    }
+  };
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const openEdit = (event: any) => {
+    setEditItem(event);
+    setFormTitle(event.title);
+    setFormSubtitle(event.subtitle || "");
+    setFormDescription(event.description);
+    setFormCategory(event.category);
+    setFormDateLabel(event.event_date_label);
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    const payload = {
+      title: formTitle,
+      subtitle: formSubtitle,
+      description: formDescription,
+      category: formCategory,
+      event_date_label: formDateLabel,
+    };
+
+    try {
+      if (editItem) {
+        await fetch(`${API}/api/admin/lic-events/${editItem.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await fetch(`${API}/api/admin/lic-events`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      setShowModal(false);
+      fetchEvents();
+    } catch (error) {
+      console.error("Error saving LIC event:", error);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this event?")) return;
+
+    try {
+      await fetch(`${API}/api/admin/lic-events/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      fetchEvents();
+    } catch (error) {
+      console.error("Error deleting LIC event:", error);
+    }
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
@@ -99,10 +145,29 @@ const LICEvents = () => {
         {/* Events Section */}
         <section className="py-20">
           <div className="container max-w-5xl">
+            {token && (
+              <div className="flex justify-end mb-8">
+                <button
+                  onClick={() => {
+                    setEditItem(null);
+                    setFormTitle("");
+                    setFormSubtitle("");
+                    setFormDescription("");
+                    setFormCategory("");
+                    setFormDateLabel("");
+                    setShowModal(true);
+                  }}
+                  className="bg-gold text-[#0f2d5c] px-6 py-2 rounded-lg font-bold shadow-md hover:bg-gold/90 transition-all"
+                >
+                  + Add Event
+                </button>
+              </div>
+            )}
+
             <div className="grid gap-8">
-              {events.map((event, i) => (
+              {(events || []).map((event, i) => (
                 <motion.div
-                  key={i}
+                  key={event.id || i}
                   initial={{ opacity: 0, x: -20 }}
                   whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true }}
@@ -116,7 +181,7 @@ const LICEvents = () => {
                     <div className="flex-1 space-y-3">
                       <div className="flex flex-wrap items-center gap-4">
                          <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-gold bg-gold/10 px-3 py-1 rounded-full">
-                           <Calendar className="h-3 w-3" /> {event.date}
+                           <Calendar className="h-3 w-3" /> {event.event_date_label}
                          </span>
                          <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
                            {event.category}
@@ -133,6 +198,24 @@ const LICEvents = () => {
                       <p className="text-muted-foreground leading-relaxed italic border-l-2 border-secondary pl-4 mt-4">
                         {event.description}
                       </p>
+
+                      {token && (
+                        <div className="flex gap-4 pt-6 border-t border-secondary/20">
+                          <button
+                            onClick={() => openEdit(event)}
+                            className="flex items-center gap-2 text-sm font-bold text-[#0f2d5c] hover:text-gold transition-colors"
+                          >
+                            ✏️ Edit
+                          </button>
+
+                          <button
+                            onClick={() => handleDelete(event.id)}
+                            className="flex items-center gap-2 text-sm font-bold text-red-600 hover:text-red-700 transition-colors"
+                          >
+                            🗑 Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </motion.div>
@@ -160,6 +243,79 @@ const LICEvents = () => {
         </section>
       </main>
       <Footer />
+
+      {/* Admin Modal */}
+      <AnimatePresence>
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl w-full max-w-lg p-8 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-xl font-bold text-[#0f2d5c]">
+                  {editItem ? "Edit Event" : "Add Event"}
+                </h2>
+                <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <input
+                className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                placeholder="Title"
+                value={formTitle}
+                onChange={(e) => setFormTitle(e.target.value)}
+              />
+
+              <input
+                className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                placeholder="Subtitle (optional)"
+                value={formSubtitle}
+                onChange={(e) => setFormSubtitle(e.target.value)}
+              />
+
+              <input
+                className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                placeholder="Category (Competition / Workshop / Training)"
+                value={formCategory}
+                onChange={(e) => setFormCategory(e.target.value)}
+              />
+
+              <input
+                className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                placeholder="Date Label (e.g. 18th March 2025)"
+                value={formDateLabel}
+                onChange={(e) => setFormDateLabel(e.target.value)}
+              />
+
+              <textarea
+                className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors h-32 resize-none"
+                placeholder="Description"
+                value={formDescription}
+                onChange={(e) => setFormDescription(e.target.value)}
+              />
+
+              <div className="flex justify-end gap-4 pt-4">
+                <button 
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="bg-[#0f2d5c] text-white px-6 py-2 rounded-lg font-bold shadow-md hover:bg-[#1a3a6b] transition-all"
+                >
+                  Save
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

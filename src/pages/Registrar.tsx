@@ -1,10 +1,26 @@
+import { useEffect, useState } from "react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Edit } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useAdmin } from "@/context/AdminContext";
+import { RegistrarEditModal } from "@/components/admin/RegistrarEditModal";
+
+const API = import.meta.env.VITE_API_URL;
 
 const Registrar = () => {
+  const [registrar, setRegistrar] = useState<any>(null);
+  const { token } = useAdmin();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API}/api/registrar/current`)
+      .then(res => res.json())
+      .then(data => setRegistrar(data.data))
+      .catch(err => console.error(err));
+  }, []);
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
@@ -51,6 +67,17 @@ const Registrar = () => {
         {/* Registrar Profile Section */}
         <section id="profile" className="py-16 lg:py-24">
           <div className="container max-w-6xl">
+            {token && (
+              <div className="mb-8 flex justify-end">
+                <button
+                  onClick={() => setIsModalOpen(true)}
+                  className="flex items-center gap-2 rounded-full bg-navy px-6 py-2.5 text-sm font-bold text-gold shadow-lg transition-all hover:bg-navy-light hover:scale-105 active:scale-95"
+                >
+                  <Edit className="h-4 w-4" />
+                  Edit Registrar Profile
+                </button>
+              </div>
+            )}
             <div className="grid gap-12 lg:grid-cols-5 items-start">
               {/* Left Side: Image */}
               <motion.div 
@@ -59,24 +86,28 @@ const Registrar = () => {
                 viewport={{ once: true }}
                 className="lg:col-span-2 flex flex-col items-center"
               >
-                <div className="relative group overflow-hidden rounded-2xl shadow-elegant border-4 border-white transition-all duration-500 hover:shadow-2xl">
-                  <motion.img
-                    whileHover={{ scale: 1.05 }}
-                    transition={{ duration: 0.5 }}
-                    src="https://dsnlu.ac.in/storage/2024/08/Dr.-Viswachandra-Nath-M-.png"
-                    alt="Dr. Viswachandra Nath Madasu"
-                    className="aspect-[3/4] w-full max-w-sm object-cover"
-                  />
-                </div>
-                <div className="mt-8 text-center">
-                  <h2 className="font-serif text-2xl font-bold text-foreground">
-                    Dr. Viswachandra Nath Madasu
-                  </h2>
-                  <p className="mt-2 text-gold font-medium uppercase tracking-wider">Registrar-In Charge</p>
-                  <p className="text-sm text-muted-foreground uppercase tracking-wider mt-1">
-                    DSNLU, Visakhapatnam
-                  </p>
-                </div>
+                {registrar && (
+                  <>
+                    <div className="relative group overflow-hidden rounded-2xl shadow-elegant border-4 border-white transition-all duration-500 hover:shadow-2xl">
+                      <motion.img
+                        whileHover={{ scale: 1.05 }}
+                        transition={{ duration: 0.5 }}
+                        src={registrar.image_url}
+                        alt={registrar.name}
+                        className="aspect-[3/4] w-full max-w-sm object-cover"
+                      />
+                    </div>
+                    <div className="mt-8 text-center">
+                      <h2 className="font-serif text-2xl font-bold text-foreground">
+                        {registrar.title_tag ? `${registrar.title_tag} ` : ""}{registrar.name}
+                      </h2>
+                      <p className="mt-2 text-gold font-medium uppercase tracking-wider">{registrar.designation}</p>
+                      <p className="text-sm text-muted-foreground uppercase tracking-wider mt-1">
+                        {registrar.university_designation}
+                      </p>
+                    </div>
+                  </>
+                )}
               </motion.div>
 
               {/* Right Side: Message */}
@@ -86,32 +117,33 @@ const Registrar = () => {
                 viewport={{ once: true }}
                 className="lg:col-span-3 space-y-8"
               >
-                <div className="relative">
-                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-gold rounded-full opacity-50" />
-                  <div className="pl-8">
-                    <h3 className="font-serif text-3xl font-bold text-foreground mb-6">Message from the Registrar</h3>
-                    <div className="space-y-6 text-muted-foreground leading-relaxed text-lg text-justify">
-                      <p>
-                        Education integrates academic and professional learning to build a strong foundation for future professionals. At Damodaram Sanjivayya National Law University, we believe that good education fosters personal development in students and contributes significantly to national growth.
-                      </p>
-                      <p>
-                        In this era of rapid technological advancements, students require catalysts to stimulate their potential and appropriate guidance to make timely and correct choices. DSNLU's campus provides a pollution-free, premier environment for learning and research, supported by highly qualified and experienced faculty dedicated to academic excellence.
-                      </p>
-                      <p>
-                        Our objective is to improve standards and achieve excellence in legal education. We understand that a university's core strength lies in its commitment to the overall development of both students and staff. DSNLU endeavors to equip students with essential life skills such as planning, organizing, team building, effective communication, and problem-solving, ensuring they are grounded in Indian cultural values while maintaining a global outlook.
-                      </p>
-                      <p className="font-serif font-bold text-foreground border-l-4 border-gold pl-4 py-2 bg-secondary/30 rounded-r-lg">
-                        The vision of DSNLU is to transform individuals into personalities, making it an ideal place for academic pursuit and rewards.
-                      </p>
+                {registrar && (
+                  <div className="relative">
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-gold rounded-full opacity-50" />
+                    <div className="pl-8">
+                      <h3 className="font-serif text-3xl font-bold text-foreground mb-6">Message from the Registrar</h3>
+                      <div className="space-y-6 text-muted-foreground leading-relaxed text-lg text-justify" style={{ whiteSpace: "pre-line" }}>
+                        {registrar.message}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </motion.div>
             </div>
           </div>
         </section>
       </main>
       <Footer />
+      <RegistrarEditModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        registrarData={registrar}
+        onSuccess={() => {
+          fetch(`${API}/api/registrar/current`)
+            .then(res => res.json())
+            .then(data => setRegistrar(data.data));
+        }}
+      />
     </div>
   );
 };

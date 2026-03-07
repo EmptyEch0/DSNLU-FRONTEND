@@ -1,51 +1,111 @@
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { ChevronRight, FlaskConical, Calendar, GraduationCap, Archive, Camera } from "lucide-react";
+import { ChevronRight, FlaskConical, Calendar, GraduationCap, Archive, Camera, Plus, Edit2, Trash2, X } from "lucide-react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
+import { useAdmin } from "@/context/AdminContext";
 
-const timelineEvents = [
-  { year: "2023", events: [
-    "National Conference on Commercial Courts (18 March 2023)",
-    "National Seminar on Air Transport & Aviation Law (11 Feb 2023)"
-  ]},
-  { year: "2022", events: [
-    "4th A.P.J Abdul Kalam Memorial National IPR Quiz (22 Oct 2022)",
-    "Round Table Conference (30 July 2022)",
-    "TK Protection Conference (9-10 April 2022)"
-  ]},
-  { year: "2021", events: [
-    "Filed Geographical Indication Application for Atreyapuram Putarekulu (13-12-2021)",
-    "3rd IPR Quiz (19 Oct 2021)",
-    "DSNLU Model WTO Ministerial Conference (6-7 Aug 2021)",
-    "Sports Law Governance Seminar (10 April 2021)"
-  ]},
-  { year: "2020", events: [
-    "International Webinar (16 Dec 2020)",
-    "2nd IPR Quiz (20 Nov 2020)"
-  ]},
-  { year: "2019", events: [
-    "Roving Conference on PCT (27 Nov 2019)",
-    "1st IPR Quiz (19 Oct 2019)",
-    "Copyright Seminar (10 Aug 2019)",
-    "National Essay Competition (April 2019)"
-  ]},
-  { year: "2018", events: [
-    "Geographical Indications Symposium (8 Sept 2018)",
-    "Inauguration of Centre for IPR (22 Sept 2018)",
-    "Model Assembly (16-17 March 2018)"
-  ]},
-  { year: "2017", events: [
-    "Model Conference of Parties (7-8 Oct 2017)"
-  ]}
-];
+const API = import.meta.env.VITE_API_URL;
 
-const galleryImages = [
-  "https://dsnlu.ac.in/storage/2023/06/research-activities-1.png",
-  "https://dsnlu.ac.in/storage/2023/06/research-activities-2.png"
-];
+interface ResearchEvent {
+  id: number;
+  text: string;
+}
+
+interface ResearchYear {
+  id: number;
+  year: string;
+  events: ResearchEvent[];
+}
+
+interface GalleryItem {
+  image_url: string;
+}
 
 const CLRResearch = () => {
+  const { token } = useAdmin();
+  const [timeline, setTimeline] = useState<ResearchYear[]>([]);
+  const [gallery, setGallery] = useState<GalleryItem[]>([]);
+
+  // Admin State
+  const [showYearModal, setShowYearModal] = useState(false);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [selectedYear, setSelectedYear] = useState<ResearchYear | null>(null);
+  const [editYear, setEditYear] = useState<ResearchYear | null>(null);
+  const [editEvent, setEditEvent] = useState<ResearchEvent | null>(null);
+  const [yearInput, setYearInput] = useState("");
+  const [eventInput, setEventInput] = useState("");
+
+  const fetchData = async () => {
+    try {
+      const res = await fetch(`${API}/api/centres/clr/research`);
+      const data = await res.json();
+      setTimeline(data.timeline || []);
+      setGallery(data.gallery || []);
+    } catch (error) {
+      console.error("Error fetching research data:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const saveYear = async () => {
+    if (editYear) {
+      await fetch(`${API}/api/admin/centre-research/year/${editYear.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ year_label: yearInput })
+      });
+    } else {
+      await fetch(`${API}/api/admin/centre-research/year`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ centre_id: 4, year_label: yearInput })
+      });
+    }
+    setShowYearModal(false);
+    fetchData();
+  };
+
+  const handleDeleteYear = async (id: number) => {
+    if (!confirm("Delete this year and all its events?")) return;
+    await fetch(`${API}/api/admin/centre-research/year/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    fetchData();
+  };
+
+  const saveEvent = async () => {
+    if (editEvent) {
+      await fetch(`${API}/api/admin/centre-research/event/${editEvent.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ event_text: eventInput })
+      });
+    } else {
+      await fetch(`${API}/api/admin/centre-research/event`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ year_id: selectedYear?.id, event_text: eventInput })
+      });
+    }
+    setShowEventModal(false);
+    fetchData();
+  };
+
+  const handleDeleteEvent = async (id: number) => {
+    if (!confirm("Delete this event?")) return;
+    await fetch(`${API}/api/admin/centre-research/event/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    fetchData();
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
@@ -101,31 +161,100 @@ const CLRResearch = () => {
         {/* Timeline Activities */}
         <section className="py-20">
           <div className="container max-w-5xl">
-            <div className="flex items-center gap-4 mb-16">
-              <FlaskConical className="h-8 w-8 text-gold" />
-              <h2 className="font-serif text-3xl font-bold text-[#0f2d5c]">MAJOR EVENTS & INITIATIVES</h2>
+            <div className="flex items-center justify-between mb-16">
+              <div className="flex items-center gap-4">
+                <FlaskConical className="h-8 w-8 text-gold" />
+                <h2 className="font-serif text-3xl font-bold text-[#0f2d5c]">MAJOR EVENTS & INITIATIVES</h2>
+              </div>
+              {token && (
+                <button
+                  onClick={() => {
+                    setEditYear(null);
+                    setYearInput("");
+                    setShowYearModal(true);
+                  }}
+                  className="bg-gold text-[#0f2d5c] px-4 py-2 rounded font-bold flex items-center gap-2 transition-all hover:bg-gold/90"
+                >
+                  <Plus className="h-4 w-4" /> Add Year
+                </button>
+              )}
             </div>
 
             <div className="space-y-12 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gold/30 before:to-transparent">
-              {timelineEvents.map((group, groupIdx) => (
-                <div key={group.year} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+              {timeline.map((group, groupIdx) => (
+                <div key={group.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
                   {/* Icon */}
                   <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white bg-secondary shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
                     <Calendar className="h-4 w-4 text-[#0f2d5c]" />
                   </div>
                   {/* Content */}
                   <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-6 rounded-2xl border bg-card shadow-sm transition-all hover:shadow-md hover:border-gold/30">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-4">
                         <time className="font-serif font-bold text-2xl text-gold">{group.year}</time>
+                        {token && (
+                          <div className="flex gap-2">
+                             <button 
+                               onClick={() => {
+                                 setEditYear(group);
+                                 setYearInput(group.year);
+                                 setShowYearModal(true);
+                               }}
+                               className="p-1 hover:text-gold transition-colors"
+                             >
+                               <Edit2 className="h-3.5 w-3.5" />
+                             </button>
+                             <button 
+                               onClick={() => handleDeleteYear(group.id)}
+                               className="p-1 hover:text-red-500 transition-colors"
+                             >
+                               <Trash2 className="h-3.5 w-3.5" />
+                             </button>
+                          </div>
+                        )}
                     </div>
-                    <ul className="space-y-3">
-                      {group.events.map((event, i) => (
-                        <li key={i} className="text-sm text-muted-foreground flex gap-2">
-                           <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
-                           {event}
+                    <ul className="space-y-3 mb-4">
+                      {group.events.map((event) => (
+                        <li key={event.id} className="text-sm text-muted-foreground flex justify-between items-start group/event">
+                           <div className="flex gap-2">
+                             <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
+                             {event.text}
+                           </div>
+                           {token && (
+                             <div className="flex gap-1 opacity-0 group-hover/event:opacity-100 transition-opacity">
+                               <button 
+                                 onClick={() => {
+                                   setEditEvent(event);
+                                   setEventInput(event.text);
+                                   setShowEventModal(true);
+                                 }}
+                                 className="p-1 hover:text-gold transition-colors"
+                               >
+                                 <Edit2 className="h-3 w-3" />
+                               </button>
+                               <button 
+                                 onClick={() => handleDeleteEvent(event.id)}
+                                 className="p-1 hover:text-red-500 transition-colors"
+                               >
+                                 <Trash2 className="h-3 w-3" />
+                               </button>
+                             </div>
+                           )}
                         </li>
                       ))}
                     </ul>
+                    {token && (
+                      <button
+                        onClick={() => {
+                          setSelectedYear(group);
+                          setEditEvent(null);
+                          setEventInput("");
+                          setShowEventModal(true);
+                        }}
+                        className="text-xs font-bold text-gold uppercase tracking-wider flex items-center gap-1 hover:underline"
+                      >
+                        <Plus className="h-3 w-3" /> Add Event
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -185,7 +314,7 @@ const CLRResearch = () => {
 
               {/* Repository Card */}
               <div className="grid grid-cols-2 gap-4">
-                {galleryImages.map((src, i) => (
+                {gallery.map((img, i) => (
                    <motion.div
                     key={i}
                     initial={{ opacity: 0, scale: 0.9 }}
@@ -195,7 +324,7 @@ const CLRResearch = () => {
                     className="aspect-square relative group overflow-hidden rounded-2xl bg-muted shadow-md"
                    >
                      <img 
-                       src={src} 
+                       src={img.image_url} 
                        alt="Research Activity" 
                        className="h-full w-full object-cover transition-transform group-hover:scale-110"
                      />
@@ -210,6 +339,89 @@ const CLRResearch = () => {
         </section>
       </main>
       <Footer />
+
+      {/* Modals */}
+      <AnimatePresence>
+        {showYearModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white p-8 rounded-2xl w-full max-w-md space-y-6 shadow-2xl"
+            >
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-serif font-bold text-[#0f2d5c]">
+                  {editYear ? "Edit Year" : "Add Year"}
+                </h2>
+                <button onClick={() => setShowYearModal(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-muted-foreground block mb-1">Year Label</label>
+                <input
+                  className="w-full border rounded-lg p-3 outline-none focus:border-gold transition-colors"
+                  value={yearInput}
+                  onChange={(e) => setYearInput(e.target.value)}
+                  placeholder="e.g. 2023"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setShowYearModal(false)} className="px-4 py-2 font-medium">Cancel</button>
+                <button
+                  onClick={saveYear}
+                  className="bg-[#0f2d5c] text-white px-6 py-2 rounded-lg font-bold shadow-md hover:bg-[#1a3a6b]"
+                >
+                  Save
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {showEventModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white p-8 rounded-2xl w-full max-w-md space-y-6 shadow-2xl"
+            >
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-serif font-bold text-[#0f2d5c]">
+                  {editEvent ? "Edit Event" : "Add Event"}
+                </h2>
+                <button onClick={() => setShowEventModal(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-muted-foreground block mb-1">Event Description</label>
+                <textarea
+                  className="w-full border rounded-lg p-3 outline-none focus:border-gold transition-colors min-h-[100px]"
+                  value={eventInput}
+                  onChange={(e) => setEventInput(e.target.value)}
+                  placeholder="Enter event details..."
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setShowEventModal(false)} className="px-4 py-2 font-medium">Cancel</button>
+                <button
+                  onClick={saveEvent}
+                  className="bg-[#0f2d5c] text-white px-6 py-2 rounded-lg font-bold shadow-md hover:bg-[#1a3a6b]"
+                >
+                  Save
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

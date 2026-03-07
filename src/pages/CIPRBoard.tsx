@@ -1,10 +1,113 @@
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { ChevronRight, Award, UserCheck, Users, Mail, GraduationCap, Gavel, Scale } from "lucide-react";
+import { ChevronRight, Award, UserCheck, Users, Mail, GraduationCap, Gavel, Scale, X, CheckCircle } from "lucide-react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
+import { useAdmin } from "@/context/AdminContext";
+
+const API = import.meta.env.VITE_API_URL;
 
 const CIPRBoard = () => {
+  const { token } = useAdmin();
+  const [board, setBoard] = useState<any[]>([]);
+
+  // Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+
+  const [formRole, setFormRole] = useState("");
+  const [formName, setFormName] = useState("");
+  const [formDesignation, setFormDesignation] = useState("");
+  const [formEmail, setFormEmail] = useState("");
+  const [formOrder, setFormOrder] = useState(1);
+
+  const fetchBoard = async () => {
+    try {
+      const res = await fetch(`${API}/api/centres/cipr/board`);
+      const data = await res.json();
+      setBoard(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error fetching CIPR board:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchBoard();
+  }, []);
+
+  const openEdit = (item: any) => {
+    setEditItem(item);
+    setFormRole(item.role);
+    setFormName(item.name);
+    setFormDesignation(item.designation || "");
+    setFormEmail(item.email || "");
+    setFormOrder(item.display_order);
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    const payload = {
+      role: formRole,
+      name: formName,
+      designation: formDesignation,
+      email: formEmail,
+      display_order: formOrder,
+    };
+
+    try {
+      if (editItem) {
+        await fetch(`${API}/api/admin/cipr/board/${editItem.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await fetch(`${API}/api/admin/cipr/board`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      setShowModal(false);
+      fetchBoard();
+    } catch (error) {
+      console.error("Error saving CIPR board member:", error);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete board member?")) return;
+
+    try {
+      await fetch(`${API}/api/admin/cipr/board/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      fetchBoard();
+    } catch (error) {
+      console.error("Error deleting CIPR board member:", error);
+    }
+  };
+
+  // Grouping Logic
+  const grouped = board.reduce((acc: any, item) => {
+    if (!acc[item.role]) acc[item.role] = [];
+    acc[item.role].push(item);
+    return acc;
+  }, {});
+
+  // Roles to display as large cards vs list items
+  const specialRoles = ["Chief Patron", "Patron", "Honorary Editor", "Chief Editor"];
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
@@ -24,13 +127,31 @@ const CIPRBoard = () => {
         <section className="relative bg-[#0f2d5c] py-20 overflow-hidden">
           <div className="absolute inset-0 opacity-10 bg-[url('https://images.unsplash.com/photo-1507679799987-c7377ec48696?auto=format&fit=crop&q=80')] bg-cover bg-center" />
           <div className="container relative z-10 text-center">
-            <motion.h1 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="font-serif text-3xl font-bold text-white md:text-5xl uppercase tracking-wider"
-            >
-              IPR Editorial & Advisory Board
-            </motion.h1>
+            <div className="flex items-center justify-center gap-4 mb-4">
+               <motion.h1 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="font-serif text-3xl font-bold text-white md:text-5xl uppercase tracking-wider"
+              >
+                IPR Editorial & Advisory Board
+              </motion.h1>
+              {token && (
+                 <button
+                  onClick={() => {
+                    setEditItem(null);
+                    setFormRole("");
+                    setFormName("");
+                    setFormDesignation("");
+                    setFormEmail("");
+                    setFormOrder(board.length + 1);
+                    setShowModal(true);
+                  }}
+                  className="bg-gold text-[#0f2d5c] px-4 py-2 rounded-lg font-bold shadow-md hover:bg-gold/90 transition-all text-sm whitespace-nowrap"
+                >
+                  + Add Member
+                </button>
+              )}
+            </div>
             <motion.div 
               initial={{ scaleX: 0 }}
               animate={{ scaleX: 1 }}
@@ -40,170 +161,202 @@ const CIPRBoard = () => {
           </div>
         </section>
 
-        {/* Patrons Section */}
-        <section className="py-20 bg-muted/30">
-          <div className="container max-w-5xl space-y-12">
-             <div className="grid md:grid-cols-2 gap-8">
-                {/* Chief Patron */}
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  className="p-8 rounded-3xl border bg-white shadow-sm flex items-start gap-6 border-t-8 border-gold"
-                >
-                  <div className="p-4 rounded-2xl bg-[#0f2d5c] text-gold shrink-0">
-                    <Gavel className="h-8 w-8" />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-xs font-bold text-gold uppercase tracking-[0.2em]">Chief Patron</p>
-                    <h3 className="font-serif text-xl font-bold text-[#0f2d5c]">Hon’ble Sri Justice P. Narasimha</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      Judge, Supreme Court of India<br />
-                      Visitor, DSNLU
-                    </p>
-                  </div>
-                </motion.div>
+        {/* Dynamic Board Sections */}
+        <section className="py-20 lg:py-24">
+          <div className="container max-w-5xl space-y-24">
+             {Object.keys(grouped).map((role) => (
+                <div key={role} className="space-y-12">
+                   <div className="flex items-center gap-4 border-l-4 border-gold pl-6">
+                      <h2 className="font-serif text-3xl font-bold text-[#0f2d5c] uppercase tracking-wider">{role}</h2>
+                   </div>
 
-                {/* Patron */}
-                <motion.div 
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: 0.1 }}
-                  className="p-8 rounded-3xl border bg-white shadow-sm flex items-start gap-6 border-t-8 border-[#0f2d5c]"
-                >
-                  <div className="p-4 rounded-2xl bg-gold text-[#0f2d5c] shrink-0">
-                    <Scale className="h-8 w-8" />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-xs font-bold text-[#0f2d5c]/60 uppercase tracking-[0.2em]">Patron</p>
-                    <h3 className="font-serif text-xl font-bold text-[#0f2d5c]">Hon’ble Sri Justice Dhiraj Singh Thakur</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      Chief Justice, High Court of Andhra Pradesh<br />
-                      Chancellor, DSNLU
-                    </p>
-                  </div>
-                </motion.div>
-             </div>
+                   <div className={
+                      role === "Chief Patron" || role === "Patron" 
+                      ? "grid md:grid-cols-2 gap-8" 
+                      : (role === "Honorary Editor" || role === "Chief Editor" ? "flex flex-col gap-8" : "grid md:grid-cols-2 lg:grid-cols-2 gap-6")
+                   }>
+                      {grouped[role].map((member: any) => (
+                         <motion.div 
+                          key={member.id}
+                          initial={{ opacity: 0, y: 20 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true }}
+                          className={`
+                            relative p-8 rounded-3xl border bg-white shadow-sm flex items-start gap-6 group transition-all hover:shadow-md
+                            ${role === "Chief Patron" ? "border-t-8 border-gold" : ""}
+                            ${role === "Patron" ? "border-t-8 border-[#0f2d5c]" : ""}
+                            ${role === "Honorary Editor" ? "bg-[#0f2d5c] text-white shadow-2xl items-center" : ""}
+                            ${role === "Chief Editor" ? "border-2 border-gold/30 bg-secondary/10 items-center" : ""}
+                          `}
+                         >
+                            {/* Icon Logic */}
+                            <div className={`
+                               p-4 rounded-2xl shrink-0
+                               ${role === "Chief Patron" ? "bg-[#0f2d5c] text-gold" : "bg-gold text-[#0f2d5c]"}
+                               ${role === "Honorary Editor" ? "bg-white/10 text-gold scale-110 !rounded-full" : ""}
+                               ${role === "Chief Editor" ? "bg-white shadow-inner !rounded-full border-4 border-gold p-6" : ""}
+                            `}>
+                               {role === "Chief Patron" && <Gavel className="h-8 w-8 text-gold" />}
+                               {role === "Patron" && <Scale className="h-8 w-8" />}
+                               {role === "Honorary Editor" && <UserCheck className="h-10 w-10" />}
+                               {role === "Chief Editor" && <GraduationCap className="h-10 w-10" />}
+                               {!specialRoles.includes(role) && <Award className="h-6 w-6 text-gold" />}
+                            </div>
 
-             {/* Honorary Editor */}
-             <motion.div 
-                initial={{ opacity: 0, scale: 0.98 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                className="p-10 rounded-3xl bg-[#0f2d5c] text-white shadow-2xl flex flex-col md:flex-row items-center text-center md:text-left gap-8"
-             >
-                <div className="p-6 rounded-full bg-white/10 text-gold scale-110">
-                  <UserCheck className="h-10 w-10" />
-                </div>
-                <div>
-                   <p className="text-xs font-bold text-gold uppercase tracking-[0.3em] mb-2">Honorary Editor</p>
-                   <h3 className="font-serif text-3xl font-bold mb-2">Prof. (Dr.) D. Surya Prakasa Rao</h3>
-                   <p className="text-lg text-white/70">Vice-Chancellor, DSNLU</p>
-                </div>
-             </motion.div>
-          </div>
-        </section>
+                            <div className="space-y-2 flex-1">
+                               <h3 className={`font-serif text-xl font-bold ${role === "Honorary Editor" ? "text-3xl" : "text-[#0f2d5c]"} ${role === "Honorary Editor" ? "text-white" : ""}`}>
+                                  {member.name}
+                               </h3>
+                               {member.designation && (
+                                  <p className={`text-sm leading-relaxed ${role === "Honorary Editor" ? "text-white/70 text-lg" : "text-muted-foreground"}`} dangerouslySetInnerHTML={{ __html: member.designation.replace(/\n/g, '<br />') }} />
+                               )}
+                               {member.email && (
+                                  <div className="flex items-center gap-2 text-gold font-medium mt-2">
+                                     <Mail className="h-4 w-4" />
+                                     <a href={`mailto:${member.email}`} className="hover:underline text-sm">{member.email}</a>
+                                  </div>
+                               )}
 
-        {/* Chief Editor Section */}
-        <section className="py-24">
-          <div className="container max-w-4xl">
-             <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="relative p-12 rounded-3xl border-2 border-gold/30 bg-secondary/10 flex flex-col md:flex-row items-center gap-10"
-             >
-                <div className="absolute top-4 right-4 text-gold/10">
-                  <Award className="h-32 w-32" />
-                </div>
-                <div className="h-32 w-32 rounded-full bg-white shadow-inner flex items-center justify-center border-4 border-gold text-[#0f2d5c]">
-                   <GraduationCap className="h-14 w-14" />
-                </div>
-                <div className="space-y-4 relative z-10 flex-1">
-                   <p className="text-sm font-bold text-[#0f2d5c]/60 uppercase tracking-widest">Chief Editor</p>
-                   <h3 className="font-serif text-3xl font-bold text-[#0f2d5c]">Dr. Dayananda Murthy C.P</h3>
-                   <div className="space-y-1 text-muted-foreground font-medium">
-                      <p>Associate Professor & Chair Person, CIPR</p>
-                      <div className="flex items-center gap-2 text-gold">
-                        <Mail className="h-4 w-4" />
-                        <a href="mailto:dmurthy@dsnlu.ac.in" className="hover:underline">dmurthy@dsnlu.ac.in</a>
-                      </div>
+                               {token && (
+                                 <div className="flex gap-4 mt-4 text-xs">
+                                   <button 
+                                      onClick={() => openEdit(member)}
+                                      className="text-blue-600 hover:scale-105 transition-transform font-bold underline underline-offset-4"
+                                   >
+                                      Edit
+                                   </button>
+                                   <button 
+                                      onClick={() => handleDelete(member.id)}
+                                      className="text-red-600 hover:scale-105 transition-transform font-bold underline underline-offset-4"
+                                   >
+                                      Delete
+                                   </button>
+                                 </div>
+                               )}
+                            </div>
+                         </motion.div>
+                      ))}
                    </div>
                 </div>
-             </motion.div>
-          </div>
-        </section>
+             ))}
 
-        {/* Boards Section */}
-        <section className="py-24 bg-muted/20">
-          <div className="container max-w-6xl space-y-16">
-             <div className="grid lg:grid-cols-2 gap-12">
-                
-                {/* Advisory Board */}
-                <motion.div 
-                  initial={{ opacity: 0, x: -20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  className="space-y-8"
-                >
-                  <div className="flex items-center gap-4">
-                    <Users className="h-8 w-8 text-gold" />
-                    <h2 className="font-serif text-2xl font-bold text-[#0f2d5c] uppercase tracking-wide">Advisory Board</h2>
-                  </div>
-                  <div className="space-y-4">
-                    {[
-                      "Prof. (Dr.) V.C. Vivekananda",
-                      "Prof. (Dr.) V.K. Ahuja",
-                      "Prof. (Dr.) T. Ramakrishna",
-                      "Prof. (Dr.) Irene Calboli"
-                    ].map((name, i) => (
-                      <div key={i} className="flex items-center justify-between p-5 rounded-xl border bg-white shadow-sm hover:shadow-md transition-all group">
-                         <span className="font-bold text-[#0f2d5c] group-hover:text-gold transition-colors">{name}</span>
-                         <Award className="h-5 w-5 text-gold/30 group-hover:text-gold transition-colors" />
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-
-                {/* Editorial Board */}
-                <motion.div 
-                  initial={{ opacity: 0, x: 20 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  className="space-y-8"
-                >
-                  <div className="flex items-center gap-4">
-                    <UserCheck className="h-8 w-8 text-gold" />
-                    <h2 className="font-serif text-2xl font-bold text-[#0f2d5c] uppercase tracking-wide">Editorial Board</h2>
-                  </div>
-                  <div className="space-y-4">
-                    {[
-                      "Dr. Ragini P Khubalkar",
-                      "Prof. (Dr.) G.B. Reddy",
-                      "Prof. (Dr.) Subhash Chandra Roy"
-                    ].map((name, i) => (
-                      <div key={i} className="flex items-center justify-between p-5 rounded-xl border bg-white shadow-sm hover:shadow-md transition-all group">
-                         <span className="font-bold text-[#0f2d5c] group-hover:text-gold transition-colors">{name}</span>
-                         <CheckCircle className="h-5 w-5 text-gold/30 group-hover:text-gold transition-colors" />
-                      </div>
-                    ))}
-                  </div>
-                </motion.div>
-
-             </div>
+             {board.length === 0 && (
+                <div className="py-20 text-center">
+                   <p className="text-muted-foreground italic">No board members found in database.</p>
+                </div>
+             )}
           </div>
         </section>
       </main>
       <Footer />
+
+      {/* Admin Modal */}
+      <AnimatePresence>
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl w-full max-w-lg p-8 shadow-2xl space-y-6"
+            >
+              <div className="flex items-center justify-between border-b pb-4">
+                <h2 className="font-serif text-xl font-bold text-[#0f2d5c]">
+                  {editItem ? "Edit Board Member" : "Add Board Member"}
+                </h2>
+                <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="grid gap-6">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-[#0f2d5c]">Role</label>
+                    <select
+                      className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors bg-white"
+                      value={formRole}
+                      onChange={(e) => setFormRole(e.target.value)}
+                    >
+                      <option value="">Select Role</option>
+                      <option value="Chief Patron">Chief Patron</option>
+                      <option value="Patron">Patron</option>
+                      <option value="Honorary Editor">Honorary Editor</option>
+                      <option value="Chief Editor">Chief Editor</option>
+                      <option value="Advisory Board">Advisory Board</option>
+                      <option value="Editorial Board">Editorial Board</option>
+                    </select>
+                    <input
+                      className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors mt-2"
+                      placeholder="Or enter custom role"
+                      value={formRole}
+                      onChange={(e) => setFormRole(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-[#0f2d5c]">Name</label>
+                    <input
+                      className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                      placeholder="Full Name"
+                      value={formName}
+                      onChange={(e) => setFormName(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-[#0f2d5c]">Designation (Supports new lines)</label>
+                  <textarea
+                    className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors min-h-[100px]"
+                    placeholder="e.g. Judge, Supreme Court of India"
+                    value={formDesignation}
+                    onChange={(e) => setFormDesignation(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-[#0f2d5c]">Email (Optional)</label>
+                    <input
+                      type="email"
+                      className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                      placeholder="email@dsnlu.ac.in"
+                      value={formEmail}
+                      onChange={(e) => setFormEmail(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-bold text-[#0f2d5c]">Display Order</label>
+                    <input
+                      type="number"
+                      className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                      value={formOrder}
+                      onChange={(e) => setFormOrder(Number(e.target.value))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-4 pt-4 border-t">
+                <button 
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="bg-[#0f2d5c] text-white px-8 py-3 rounded-lg font-bold shadow-md hover:bg-[#1a3a6b] transition-all"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
-
-const CheckCircle = ({ className }: { className?: string }) => (
-  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>
-);
 
 export default CIPRBoard;

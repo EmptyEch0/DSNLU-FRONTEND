@@ -1,109 +1,166 @@
-
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAdmin } from "@/context/AdminContext";
+import { toast } from "@/hooks/use-toast";
 
-const CAROUSEL_DATA = [
-  {
-    image: "https://images.unsplash.com/photo-1562774053-701939374585?q=80&w=1000&auto=format&fit=crop",
-    title: "World-Class Campus",
-    subtitle: "State-of-the-art infrastructure for holistic learning",
-  },
-  {
-    image: "https://images.unsplash.com/photo-1589829085413-56de8ae18c73?q=80&w=1000&auto=format&fit=crop",
-    title: "Moot Court Excellence",
-    subtitle: "Practicing advocacy in realistic court settings",
-  },
-  {
-    image: "https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?q=80&w=1000&auto=format&fit=crop",
-    title: "Extensive Library",
-    subtitle: "A vast repository of legal knowledge & research",
-  },
-  {
-    image: "https://images.unsplash.com/photo-1453928582365-b6ad33cbcf64?q=80&w=1000&auto=format&fit=crop",
-    title: "Legal Research",
-    subtitle: "Contributing to the future of Indian jurisprudence",
-  },
-];
+interface CarouselItem {
+  id: number;
+  image_url: string;
+  title: string | null;
+  subtitle: string | null;
+}
+
+
+const API = import.meta.env.VITE_API_URL;
 
 export function HeroCarousel() {
+  const { token } = useAdmin();
+  const [carouselData, setCarouselData] = useState<CarouselItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
-    if (isPaused) return;
+    fetch(`${API}/api/carousel`)
+      .then((res) => res.json())
+      .then(setCarouselData);
+  }, []);
+
+  useEffect(() => {
+    if (isPaused || carouselData.length === 0) return;
 
     const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % CAROUSEL_DATA.length);
-    }, 4000); // 4s auto-slide
+      setCurrentIndex((prev) => (prev + 1) % carouselData.length);
+    }, 4000);
 
     return () => clearInterval(interval);
-  }, [isPaused]);
+  }, [isPaused, carouselData]);
+
+  const handleAdd = async () => {
+    const newSlide = {
+      image_url: prompt("Enter Image URL"),
+      title: prompt("Enter Title"),
+      subtitle: prompt("Enter Subtitle"),
+    };
+
+    if (!newSlide.image_url) return;
+
+    await fetch(`${API}/api/carousel`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(newSlide),
+    });
+
+    toast({
+      title: "Success",
+      description: "Slide added successfully",
+    });
+
+    window.location.reload();
+  };
+
+  const handleEdit = async () => {
+    const current = carouselData[currentIndex];
+
+    const updated = {
+      image_url: prompt("Edit Image URL", current.image_url),
+      title: prompt("Edit Title", current.title || ""),
+      subtitle: prompt("Edit Subtitle", current.subtitle || ""),
+    };
+
+    await fetch(
+      `${API}/api/carousel/${current.id}`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(updated),
+      }
+    );
+
+    toast({
+      title: "Success",
+      description: "Slide updated successfully",
+    });
+
+    window.location.reload();
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!id) return;
+    if (!confirm("Are you sure you want to delete this slide?")) return;
+
+    await fetch(`${API}/api/carousel/${id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    setCarouselData((prev) => prev.filter((item) => item.id !== id));
+    
+    toast({
+      title: "Deleted",
+      description: "Slide deleted successfully",
+    });
+
+    if (currentIndex >= carouselData.length - 1) {
+      setCurrentIndex(Math.max(0, carouselData.length - 2));
+    }
+  };
+
+  if (carouselData.length === 0) return null;
 
   return (
     <div
-      className="group relative mx-auto h-[240px] w-full max-w-[600px] overflow-hidden rounded-[18px] border border-gold/30 shadow-gold-glow transition-all duration-500 hover:shadow-gold md:h-[300px] lg:h-[380px] hover:scale-[1.01]"
-      style={{ animation: "float 6s ease-in-out infinite" }}
+      className="group relative mx-auto h-[350px] md:h-[450px] w-full max-w-[1200px] overflow-hidden rounded-[18px] shadow-2xl"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      {/* Background/Backdrop */}
-      <div className="absolute inset-0 bg-navy/20 backdrop-blur-sm" />
+      {token && (
+        <div className="absolute top-4 right-4 z-50 flex gap-2">
+          <button
+            onClick={handleAdd}
+            className="rounded bg-blue-600 px-3 py-1 text-sm text-white shadow hover:bg-blue-700 transition-colors"
+          >
+            + Add
+          </button>
+
+          <button
+            onClick={handleEdit}
+            className="rounded bg-gray-200 px-3 py-1 text-sm text-black shadow hover:bg-gray-300 transition-colors"
+          >
+            Edit
+          </button>
+
+          <button
+            onClick={() => handleDelete(carouselData[currentIndex].id)}
+            className="rounded bg-red-500 px-3 py-1 text-sm text-white shadow hover:bg-red-600 transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      )}
 
       <AnimatePresence mode="popLayout">
         <motion.div
           key={currentIndex}
           className="absolute inset-0 h-full w-full"
-          initial={{ opacity: 0, scale: 1.05 }}
-          animate={{ opacity: 1, scale: 1 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.8, ease: "easeInOut" }}
         >
           <img
-            src={CAROUSEL_DATA[currentIndex].image}
-            alt={CAROUSEL_DATA[currentIndex].title}
-            className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+            src={carouselData[currentIndex].image_url}
+            className="h-full w-full object-cover"
+            alt={carouselData[currentIndex].title || ""}
           />
-          
-          {/* Custom Dark Gradient Overlay for text visibility */}
-          <div className="absolute inset-0 bg-gradient-to-t from-navy-dark/90 via-navy-dark/20 to-transparent opacity-80" />
         </motion.div>
       </AnimatePresence>
-
-      {/* Floating Caption Overlay */}
-      <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={currentIndex}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="flex flex-col gap-1"
-          >
-            <h3 className="font-serif text-xl font-bold text-gold md:text-2xl drop-shadow-md">
-              {CAROUSEL_DATA[currentIndex].title}
-            </h3>
-            <p className="line-clamp-2 text-sm text-ivory/90 md:text-base drop-shadow-sm">
-              {CAROUSEL_DATA[currentIndex].subtitle}
-            </p>
-          </motion.div>
-        </AnimatePresence>
-      </div>
-
-      {/* Progress Indicators */}
-      <div className="absolute top-4 right-4 flex gap-1.5">
-        {CAROUSEL_DATA.map((_, idx) => (
-          <div
-            key={idx}
-            className={`h-1 rounded-full transition-all duration-500 ${
-              idx === currentIndex ? "w-6 bg-gold" : "w-1.5 bg-ivory/40"
-            }`}
-          />
-        ))}
-      </div>
-      
-      {/* Glassmorphism Border Effect */}
-      <div className="pointer-events-none absolute inset-0 rounded-[18px] border border-ivory/10 shadow-[inset_0_0_20px_rgba(255,255,255,0.05)]" />
     </div>
   );
 }

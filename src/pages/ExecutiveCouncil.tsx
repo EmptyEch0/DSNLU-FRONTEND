@@ -1,29 +1,135 @@
+import { useEffect, useState } from "react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useAdmin } from "@/context/AdminContext";
+
+interface CouncilMember {
+  id: number;
+  serial_no: number;
+  member_name: string;
+  designation: string;
+}
+
+const API = import.meta.env.VITE_API_URL;
 
 const ExecutiveCouncil = () => {
-  const members = [
-    { id: 1, name: "Prof. (Dr.) D. Surya Prakasa Rao", designation: "Vice-Chancellor, DSNLU" },
-    { id: 2, name: "Hon'ble Sri Justice D.V.S.S. Somayajulu", designation: "Judge (Retd.), High Court of A.P., Amaravati and Professor Emeritus / Distinguished Professor, DSNLU" },
-    { id: 3, name: "Prof. K. Madhu Murthy", designation: "Chairman, Andhra Pradesh State Council of Higher Education" },
-    { id: 4, name: "Sri P. Sri Raghuram", designation: "Senior Advocate, High Court of Andhra Pradesh, Amaravati" },
-    { id: 5, name: "Ms. G. Pratibhadevi", designation: "Secretary to Government, Legal and Legislative Affairs & Justice, Law Department, Govt. of Andhra Pradesh" },
-    { id: 6, name: "Principal Secretary to Government", designation: "Finance Department, Government of Andhra Pradesh" },
-    { id: 7, name: "Prof. G. Mohan Gopal", designation: "Former Director, National Judicial Academy, Bhopal" },
-    { id: 8, name: "Prof. R. Venkata Rao", designation: "Vice-Chancellor, India International University of Legal Education and Research (IIULER), Goa" },
-    { id: 9, name: "Dr. Dayananda Murthy C.P.", designation: "Associate Professor, DSNLU" },
-    { id: 10, name: "Dr. N. Bhagyalakshmi", designation: "Assistant Professor, DSNLU" },
-    { id: 11, name: "Dr. A. Nageswara Rao", designation: "Assistant Professor, DSNLU" },
-    { id: 12, name: "Registrar", designation: "DSNLU" },
-  ];
+  const [members, setMembers] = useState<CouncilMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const { token } = useAdmin();
+
+  // Modal states
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editMember, setEditMember] = useState<CouncilMember | null>(null);
+  const [formName, setFormName] = useState("");
+  const [formDesignation, setFormDesignation] = useState("");
+
+  const fetchMembers = async () => {
+    try {
+      const res = await fetch(`${API}/api/executive-council`);
+      const data = await res.json();
+      setMembers(data);
+    } catch (err) {
+      setError("Failed to load members");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMembers();
+  }, []);
+
+  // --- Admin handlers ---
+  const handleAdd = async () => {
+    await fetch(`${API}/api/executive-council`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ member_name: formName, designation: formDesignation }),
+    });
+    setShowAddModal(false);
+    setFormName("");
+    setFormDesignation("");
+    fetchMembers();
+  };
+
+  const handleEdit = async () => {
+    if (!editMember) return;
+    await fetch(`${API}/api/executive-council/${editMember.id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ member_name: formName, designation: formDesignation }),
+    });
+    setEditMember(null);
+    setFormName("");
+    setFormDesignation("");
+    fetchMembers();
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Are you sure you want to remove this member?")) return;
+    await fetch(`${API}/api/executive-council/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setMembers(members.filter((m) => m.id !== id));
+  };
+
+  const saveOrder = async (updated: CouncilMember[]) => {
+    const orders = updated.map((m, index) => ({
+      id: m.id,
+      order: index + 1,
+    }));
+    await fetch(`${API}/api/executive-council/reorder`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ orders }),
+    });
+  };
+
+  const moveUp = (id: number) => {
+    const index = members.findIndex((m) => m.id === id);
+    if (index === 0) return;
+    const updated = [...members];
+    [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
+    const reordered = updated.map((m, i) => ({ ...m, serial_no: i + 1 }));
+    setMembers(reordered);
+    saveOrder(reordered);
+  };
+
+  const moveDown = (id: number) => {
+    const index = members.findIndex((m) => m.id === id);
+    if (index === members.length - 1) return;
+    const updated = [...members];
+    [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
+    const reordered = updated.map((m, i) => ({ ...m, serial_no: i + 1 }));
+    setMembers(reordered);
+    saveOrder(reordered);
+  };
+
+  const openEditModal = (member: CouncilMember) => {
+    setEditMember(member);
+    setFormName(member.member_name);
+    setFormDesignation(member.designation);
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
       <main className="flex-1">
+
         {/* Breadcrumb */}
         <div className="border-b bg-secondary/50">
           <div className="container flex items-center gap-2 py-4 text-sm text-muted-foreground">
@@ -48,6 +154,7 @@ const ExecutiveCouncil = () => {
             >
               Authorities
             </motion.span>
+
             <motion.h1 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -56,6 +163,7 @@ const ExecutiveCouncil = () => {
             >
               Executive Council
             </motion.h1>
+
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -64,6 +172,7 @@ const ExecutiveCouncil = () => {
             >
               Under Section 15(1) of DSNLU Act, 2008
             </motion.p>
+
             <motion.div 
               initial={{ scaleX: 0 }}
               animate={{ scaleX: 1 }}
@@ -76,46 +185,146 @@ const ExecutiveCouncil = () => {
         {/* Council Members Section */}
         <section className="py-16 lg:py-24">
           <div className="container max-w-5xl">
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="space-y-12"
-            >
+            <div className="space-y-12">
+
               <div className="text-center">
-                <h2 className="font-serif text-3xl font-bold text-foreground">EXECUTIVE COUNCIL</h2>
+                <h2 className="font-serif text-3xl font-bold text-foreground">
+                  EXECUTIVE COUNCIL
+                </h2>
                 <div className="mx-auto mt-4 h-1 w-16 rounded-full bg-gold" />
               </div>
 
+              {/* Admin Add Button */}
+              {token && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => { setShowAddModal(true); setFormName(""); setFormDesignation(""); }}
+                    className="px-5 py-2.5 bg-navy text-gold rounded-full font-bold text-sm shadow-lg transition-all hover:scale-105 active:scale-95"
+                  >
+                    + Add Member
+                  </button>
+                </div>
+              )}
+
               <div className="overflow-hidden rounded-2xl border bg-card shadow-elegant">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-gold text-navy uppercase text-sm font-bold tracking-wider">
-                        <th className="px-6 py-4">S.No</th>
-                        <th className="px-6 py-4">Hon’ble Member</th>
-                        <th className="px-6 py-4">Designation / Details</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {members.map((member) => (
-                        <tr key={member.id} className="transition-colors hover:bg-gold/5 group">
-                          <td className="px-6 py-5 text-muted-foreground group-hover:text-foreground">{member.id}</td>
-                          <td className="px-6 py-5 font-bold text-foreground group-hover:text-gold whitespace-nowrap">{member.name}</td>
-                          <td className="px-6 py-5 text-muted-foreground group-hover:text-foreground leading-relaxed">
-                            {member.designation}
-                          </td>
+
+                  {loading && (
+                    <div className="p-8 text-center text-muted-foreground">
+                      Loading council members...
+                    </div>
+                  )}
+
+                  {error && (
+                    <div className="p-8 text-center text-red-500">
+                      {error}
+                    </div>
+                  )}
+
+                  {!loading && !error && (
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-gold text-navy uppercase text-sm font-bold tracking-wider">
+                          <th className="px-6 py-4">S.No</th>
+                          <th className="px-6 py-4">Hon'ble Member</th>
+                          <th className="px-6 py-4">Designation / Details</th>
+                          {token && <th className="px-6 py-4">Actions</th>}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+
+                      <tbody className="divide-y divide-border">
+                        {members.map((member) => (
+                          <tr
+                            key={member.id}
+                            className="transition-colors hover:bg-gold/5 group"
+                          >
+                            <td className="px-6 py-5 text-muted-foreground">
+                              {member.serial_no}
+                            </td>
+
+                            <td className="px-6 py-5 font-bold text-foreground group-hover:text-gold whitespace-nowrap">
+                              {member.member_name}
+                            </td>
+
+                            <td className="px-6 py-5 text-muted-foreground leading-relaxed">
+                              {member.designation}
+                            </td>
+
+                            {token && (
+                              <td className="px-6 py-5">
+                                <div className="flex gap-2">
+                                  <button onClick={() => openEditModal(member)} title="Edit" className="p-1.5 rounded hover:bg-gold/10 transition-colors">✏️</button>
+                                  <button onClick={() => handleDelete(member.id)} title="Delete" className="p-1.5 rounded hover:bg-red-50 transition-colors">🗑️</button>
+                                  <button onClick={() => moveUp(member.id)} title="Move Up" className="p-1.5 rounded hover:bg-gold/10 transition-colors">⬆️</button>
+                                  <button onClick={() => moveDown(member.id)} title="Move Down" className="p-1.5 rounded hover:bg-gold/10 transition-colors">⬇️</button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+
                 </div>
               </div>
-            </motion.div>
+
+            </div>
           </div>
         </section>
+
       </main>
       <Footer />
+
+      {/* Add Member Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-xl w-full max-w-md space-y-4">
+            <h2 className="text-xl font-bold">Add New Member</h2>
+            <input
+              className="w-full border p-2 rounded"
+              value={formName}
+              onChange={(e) => setFormName(e.target.value)}
+              placeholder="Member Name"
+            />
+            <input
+              className="w-full border p-2 rounded"
+              value={formDesignation}
+              onChange={(e) => setFormDesignation(e.target.value)}
+              placeholder="Designation"
+            />
+            <div className="flex justify-end gap-4 pt-2">
+              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 border rounded">Cancel</button>
+              <button onClick={handleAdd} className="px-4 py-2 bg-navy text-gold rounded font-bold">Add Member</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Member Modal */}
+      {editMember && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-xl w-full max-w-md space-y-4">
+            <h2 className="text-xl font-bold">Edit Member</h2>
+            <input
+              className="w-full border p-2 rounded"
+              value={formName}
+              onChange={(e) => setFormName(e.target.value)}
+              placeholder="Member Name"
+            />
+            <input
+              className="w-full border p-2 rounded"
+              value={formDesignation}
+              onChange={(e) => setFormDesignation(e.target.value)}
+              placeholder="Designation"
+            />
+            <div className="flex justify-end gap-4 pt-2">
+              <button onClick={() => setEditMember(null)} className="px-4 py-2 border rounded">Cancel</button>
+              <button onClick={handleEdit} className="px-4 py-2 bg-navy text-gold rounded font-bold">Save Changes</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

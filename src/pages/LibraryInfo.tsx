@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { LibraryHeader } from "@/components/layout/LibraryHeader";
@@ -11,7 +12,10 @@ import {
   Calendar, 
   ArrowRight,
   Send,
-  Library
+  Library,
+  Pencil,
+  Trash2,
+  Plus
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +26,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useAdmin } from "@/context/AdminContext";
+import { toast } from "sonner";
+
+const API = import.meta.env.VITE_API_URL;
 
 const galleryImages = [
   { url: "https://images.unsplash.com/photo-1541339907198-e08756ebafe3?auto=format&fit=crop&q=80", title: "Reading Hall" },
@@ -30,25 +38,136 @@ const galleryImages = [
   { url: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&q=80", title: "Stack Room" },
 ];
 
-const teamMembers = [
-  { name: "Dr. Rajesh Jampani", role: "Deputy Librarian & Librarian I/c", img: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80" },
-  { name: "Dr. R. Leela Mohana Kumari", role: "Assistant Librarian", img: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80" },
-  { name: "Dr. B. Manikya Rao", role: "Senior Consultant (Library)", img: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80" },
-  { name: "Mr. M. Dhanunjaya Naidu", role: "Assistant Librarian", img: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80" },
-  { name: "Mr. D.V.V.G. Muralidhar Rao", role: "Sr. Record Assistant", img: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80" },
-  { name: "Mr. E. Shanmukeswara Rao", role: "Record Assistant", img: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80" },
-  { name: "Mr. D. Ram Prasad", role: "Attender", img: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80" },
-  { name: "N. Eswar Rao", role: "Administrative Assistant", img: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80" },
-];
-
-const committeeMembers = [
-  { role: "Chair Person", name: "Dr. B. Soma" },
-  { role: "Members", names: ["Prof. Nandini C.P.", "Dr. P. Jogi Naidu", "Dr. Rifat Khan", "Ms. Sherley Hepsiba D"] },
-  { role: "Convener", name: "Dr. J. Rajesh" },
-  { role: "Co-Convener", name: "Dr. R. Leela Mohana Kumari" },
-];
-
 const LibraryInfo = () => {
+  const { token } = useAdmin();
+  const [team, setTeam] = useState<any[]>([]);
+  const [committee, setCommittee] = useState<any[]>([]);
+
+  // Admin modal state
+  const [modal, setModal] = useState<{ type: "team" | "committee"; item: any } | null>(null);
+  const [modalData, setModalData] = useState<any>({});
+
+  const authHeaders = () => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  });
+
+  const fetchData = async () => {
+    try {
+      const [teamRes, committeeRes] = await Promise.all([
+        fetch(`${API}/api/library/team`),
+        fetch(`${API}/api/library/committee`),
+      ]);
+
+      const teamData = await teamRes.json();
+      const committeeData = await committeeRes.json();
+
+      setTeam(Array.isArray(teamData) ? teamData : []);
+      setCommittee(Array.isArray(committeeData) ? committeeData : []);
+    } catch (err) {
+      console.error("Library fetch error:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const openModal = (type: "team" | "committee", item?: any) => {
+    setModal({ type, item: item || null });
+    setModalData(item ? { ...item } : {});
+  };
+
+  const saveItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!modal) return;
+
+    try {
+      const isEdit = !!modal.item?.id;
+      const method = isEdit ? "PUT" : "POST";
+      const url = isEdit 
+        ? `${API}/api/library/${modal.type}/${modal.item.id}` 
+        : `${API}/api/library/${modal.type}`;
+
+      const res = await fetch(url, {
+        method,
+        headers: authHeaders(),
+        body: JSON.stringify(modalData),
+      });
+
+      if (res.status === 403) {
+        toast.error("Session expired. Please login again.");
+        return;
+      }
+
+      const result = await res.json();
+      if (!res.ok) {
+        toast.error(result.error || "Failed to save");
+        return;
+      }
+
+      toast.success(`${modal.type === "team" ? "Team" : "Committee"} member ${isEdit ? "updated" : "added"} successfully!`);
+      setModal(null);
+      fetchData();
+    } catch (err) {
+      console.error("Save error:", err);
+      toast.error("Server error. Please try again.");
+    }
+  };
+
+  const deleteItem = async (type: "team" | "committee", id: number) => {
+    if (!confirm(`Delete this ${type} member?`)) return;
+
+    try {
+      const res = await fetch(`${API}/api/library/${type}/${id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+
+      if (res.status === 403) {
+        toast.error("Session expired.");
+        return;
+      }
+
+      const result = await res.json();
+      if (!res.ok) {
+        toast.error(result.error || "Failed to delete");
+        return;
+      }
+
+      toast.success("Deleted successfully!");
+      fetchData();
+    } catch (err) {
+      console.error("Delete error:", err);
+      toast.error("Server error.");
+    }
+  };
+
+  // Fallback static data if API returns empty
+  const fallbackTeam = [
+    { name: "Dr. Rajesh Jampani", role: "Deputy Librarian & Librarian I/c", image_url: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80" },
+    { name: "Dr. R. Leela Mohana Kumari", role: "Assistant Librarian", image_url: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&q=80" },
+    { name: "Dr. B. Manikya Rao", role: "Senior Consultant (Library)", image_url: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80" },
+    { name: "Mr. M. Dhanunjaya Naidu", role: "Assistant Librarian", image_url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80" },
+    { name: "Mr. D.V.V.G. Muralidhar Rao", role: "Sr. Record Assistant", image_url: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&q=80" },
+    { name: "Mr. E. Shanmukeswara Rao", role: "Record Assistant", image_url: "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&q=80" },
+    { name: "Mr. D. Ram Prasad", role: "Attender", image_url: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80" },
+    { name: "N. Eswar Rao", role: "Administrative Assistant", image_url: "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&q=80" },
+  ];
+
+  const fallbackCommittee = [
+    { role: "Chair Person", name: "Dr. B. Soma" },
+    { role: "Member", name: "Prof. Nandini C.P." },
+    { role: "Member", name: "Dr. P. Jogi Naidu" },
+    { role: "Member", name: "Dr. Rifat Khan" },
+    { role: "Member", name: "Ms. Sherley Hepsiba D" },
+    { role: "Convener", name: "Dr. J. Rajesh" },
+    { role: "Co-Convener", name: "Dr. R. Leela Mohana Kumari" },
+  ];
+
+  const displayTeam = team.length > 0 ? team : fallbackTeam;
+  const displayCommittee = committee.length > 0 ? committee : fallbackCommittee;
+
   return (
     <div className="flex min-h-screen flex-col bg-white">
       <Header />
@@ -154,15 +273,22 @@ const LibraryInfo = () => {
         {/* Library Team Section */}
         <section className="py-20 lg:py-28">
           <div className="container max-w-7xl">
-            <div className="text-center mb-16 space-y-4">
-              <h2 className="font-serif text-4xl font-bold text-navy">Our Library Team</h2>
-              <div className="h-1 w-24 bg-blue-600 mx-auto rounded-full" />
+            <div className="flex justify-between items-center mb-16 px-4">
+              <div className="space-y-4 text-center mx-auto">
+                <h2 className="font-serif text-4xl font-bold text-navy">Our Library Team</h2>
+                <div className="h-1 w-24 bg-blue-600 mx-auto rounded-full" />
+              </div>
+              {token && (
+                <Button onClick={() => openModal("team")} className="bg-navy hover:bg-navy/90 text-white rounded-full flex items-center gap-2">
+                  <Plus className="h-4 w-4" /> Add Member
+                </Button>
+              )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
-              {teamMembers.map((member, idx) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 px-4 md:px-0">
+              {displayTeam.map((member, idx) => (
                 <motion.div
-                  key={idx}
+                  key={member.id || idx}
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
@@ -175,13 +301,32 @@ const LibraryInfo = () => {
                   <div className="relative mb-6 mx-auto w-32 h-32">
                     <div className="absolute -inset-2 bg-gradient-to-tr from-blue-600 to-navy opacity-0 group-hover:opacity-100 rounded-full transition-opacity duration-300 animate-pulse" />
                     <img 
-                      src={member.img} 
+                      src={member.image_url} 
                       alt={member.name}
                       className="w-full h-full rounded-full object-cover relative z-10 border-4 border-white shadow-md grayscale group-hover:grayscale-0 transition-all duration-500"
                     />
                   </div>
                   <h3 className="text-xl font-bold text-navy mb-2 leading-tight">{member.name}</h3>
-                  <p className="text-blue-600 font-semibold text-sm uppercase tracking-wider">{member.role}</p>
+                  <p className="text-blue-600 font-semibold text-sm uppercase tracking-wider mb-4">{member.role}</p>
+                  
+                  {token && member.id && (
+                    <div className="flex justify-center gap-3 pt-4 border-t border-navy/5 relative z-20">
+                      <button 
+                        onClick={() => openModal("team", member)}
+                        className="p-2 rounded-full hover:bg-blue-50 text-blue-600 transition-colors"
+                        title="Edit member"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button 
+                        onClick={() => deleteItem("team", member.id)}
+                        className="p-2 rounded-full hover:bg-red-50 text-red-600 transition-colors"
+                        title="Delete member"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                 </motion.div>
               ))}
             </div>
@@ -198,9 +343,17 @@ const LibraryInfo = () => {
               viewport={{ once: true }}
               className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-navy/10"
             >
-              <div className="bg-navy p-8 text-white text-center">
+              <div className="bg-navy p-8 text-white text-center relative">
                 <Users className="h-12 w-12 text-blue-400 mx-auto mb-4" />
                 <h2 className="font-serif text-3xl font-bold">Library Advisory Committee</h2>
+                {token && (
+                  <Button 
+                    onClick={() => openModal("committee")} 
+                    className="absolute right-8 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-600/90 text-white rounded-full flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" /> Add
+                  </Button>
+                )}
               </div>
               <div className="px-8 py-10 overflow-x-auto">
                 <Table>
@@ -208,28 +361,30 @@ const LibraryInfo = () => {
                     <TableRow className="bg-navy/5 hover:bg-navy/5">
                       <TableHead className="font-bold text-navy text-lg w-1/3 py-6">Designation</TableHead>
                       <TableHead className="font-bold text-navy text-lg py-6">Name of the Member</TableHead>
+                      {token && <TableHead className="font-bold text-navy text-lg py-6 w-24">Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {committeeMembers.map((item, idx) => (
-                      <TableRow key={idx} className="hover:bg-gold/5 transition-colors border-b border-navy/5">
+                    {displayCommittee.map((item, idx) => (
+                      <TableRow key={item.id || idx} className="hover:bg-gold/5 transition-colors border-b border-navy/5">
                         <TableCell className="font-semibold text-navy py-6 text-lg">
-                          {item.role}
+                          {item.role || item.designation}
                         </TableCell>
                         <TableCell className="py-6 text-lg text-muted-foreground">
-                          {item.names ? (
-                            <ul className="space-y-2">
-                              {item.names.map((name, i) => (
-                                <li key={i} className="flex items-center gap-2">
-                                  <div className="h-1.5 w-1.5 rounded-full bg-blue-600 shrink-0" />
-                                  {name}
-                                </li>
-                              ))}
-                            </ul>
-                          ) : (
-                            item.name
-                          )}
+                          {item.name}
                         </TableCell>
+                        {token && item.id && (
+                          <TableCell className="py-6">
+                            <div className="flex gap-3">
+                              <button onClick={() => openModal("committee", item)} className="text-blue-600 hover:scale-110 transition-transform">
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button onClick={() => deleteItem("committee", item.id)} className="text-red-600 hover:scale-110 transition-transform">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -314,6 +469,107 @@ const LibraryInfo = () => {
         </section>
       </main>
       <Footer />
+
+      {/* Admin Modal */}
+      {modal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 overflow-y-auto">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-navy/10"
+          >
+            <div className="bg-navy p-6 text-white flex justify-between items-center">
+              <h3 className="text-2xl font-serif font-bold">
+                {modal.item ? "Edit" : "Add"} {modal.type === "team" ? "Team Member" : "Committee Member"}
+              </h3>
+              <button 
+                onClick={() => setModal(null)}
+                className="hover:scale-110 transition-transform p-1"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={saveItem} className="p-8 space-y-6">
+              {modal.type === "team" ? (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-navy/60 pl-1">Full Name</label>
+                    <input 
+                      required
+                      className="w-full border-2 border-navy/10 rounded-xl px-4 py-3 focus:border-blue-600 outline-none transition-colors"
+                      placeholder="e.g. Dr. Rajesh Jampani" 
+                      value={modalData.name || ""} 
+                      onChange={(e) => setModalData({ ...modalData, name: e.target.value })} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-navy/60 pl-1">Role / Designation</label>
+                    <input 
+                      required
+                      className="w-full border-2 border-navy/10 rounded-xl px-4 py-3 focus:border-blue-600 outline-none transition-colors"
+                      placeholder="e.g. Assistant Librarian" 
+                      value={modalData.role || ""} 
+                      onChange={(e) => setModalData({ ...modalData, role: e.target.value })} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-navy/60 pl-1">Image URL</label>
+                    <input 
+                      required
+                      className="w-full border-2 border-navy/10 rounded-xl px-4 py-3 focus:border-blue-600 outline-none transition-colors"
+                      placeholder="HTTPS link to photo" 
+                      value={modalData.image_url || ""} 
+                      onChange={(e) => setModalData({ ...modalData, image_url: e.target.value })} 
+                    />
+                    <p className="text-[10px] text-muted-foreground italic">Use a high quality square portrait URL.</p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-navy/60 pl-1">Committee Position</label>
+                    <input 
+                      required
+                      className="w-full border-2 border-navy/10 rounded-xl px-4 py-3 focus:border-blue-600 outline-none transition-colors"
+                      placeholder="e.g. Chair Person" 
+                      value={modalData.designation || ""} 
+                      onChange={(e) => setModalData({ ...modalData, designation: e.target.value })} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-navy/60 pl-1">Member Name(s)</label>
+                    <textarea 
+                      required
+                      className="w-full border-2 border-navy/10 rounded-xl px-4 py-3 focus:border-blue-600 outline-none transition-colors min-h-[100px]"
+                      placeholder="e.g. Prof. Nandini C.P." 
+                      value={modalData.name || ""} 
+                      onChange={(e) => setModalData({ ...modalData, name: e.target.value })} 
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="flex gap-4 pt-4">
+                <Button 
+                  type="button"
+                  variant="outline" 
+                   onClick={() => setModal(null)}
+                  className="flex-1 rounded-xl py-6 border-2 font-bold"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit"
+                  className="flex-1 bg-navy hover:bg-navy/90 text-white rounded-xl py-6 font-bold shadow-lg"
+                >
+                  {modal.item ? "Update Member" : "Add Member"}
+                </Button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

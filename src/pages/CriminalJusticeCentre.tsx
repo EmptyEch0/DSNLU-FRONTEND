@@ -1,10 +1,95 @@
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { ChevronRight, Gavel, ShieldCheck, Microscope, Scale, BookOpen } from "lucide-react";
+import { ChevronRight, Gavel, ShieldCheck, Microscope, Scale, BookOpen, X } from "lucide-react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
+import { useAdmin } from "@/context/AdminContext";
+
+const API = import.meta.env.VITE_API_URL;
 
 const CriminalJusticeCentre = () => {
+  const { token } = useAdmin();
+  const [committee, setCommittee] = useState<any[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+
+  const [formRole, setFormRole] = useState("");
+  const [formName, setFormName] = useState("");
+  const [formOrder, setFormOrder] = useState(1);
+
+  const fetchCommittee = async () => {
+    try {
+      const res = await fetch(`${API}/api/centres/criminal-justice/committee`);
+      const data = await res.json();
+      setCommittee(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Error fetching Criminal Justice committee:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchCommittee();
+  }, []);
+
+  const openEdit = (item: any) => {
+    setEditItem(item);
+    setFormRole(item.role);
+    setFormName(item.name);
+    setFormOrder(item.display_order);
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    const payload = {
+      role: formRole,
+      name: formName,
+      display_order: formOrder,
+    };
+
+    try {
+      if (editItem) {
+        await fetch(`${API}/api/admin/criminal-justice/committee/${editItem.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await fetch(`${API}/api/admin/criminal-justice/committee`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      setShowModal(false);
+      fetchCommittee();
+    } catch (error) {
+      console.error("Error saving Criminal Justice committee member:", error);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete member?")) return;
+
+    try {
+      await fetch(`${API}/api/admin/criminal-justice/committee/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      fetchCommittee();
+    } catch (error) {
+      console.error("Error deleting Criminal Justice committee member:", error);
+    }
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
@@ -24,13 +109,29 @@ const CriminalJusticeCentre = () => {
         <section className="relative bg-[#0f2d5c] py-20 overflow-hidden">
           <div className="absolute inset-0 opacity-10 bg-[url('https://images.unsplash.com/photo-1589578594224-110058e38144?auto=format&fit=crop&q=80')] bg-cover bg-center" />
           <div className="container relative z-10 text-center">
-            <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="font-serif text-3xl font-bold text-white md:text-5xl"
-            >
-              CENTRE FOR CRIMINAL JUSTICE & ADMINISTRATION
-            </motion.h1>
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <motion.h1 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="font-serif text-3xl font-bold text-white md:text-5xl uppercase tracking-wider"
+              >
+                CENTRE FOR CRIMINAL JUSTICE & ADMINISTRATION
+              </motion.h1>
+              {token && (
+                <button
+                  onClick={() => {
+                    setEditItem(null);
+                    setFormRole("");
+                    setFormName("");
+                    setFormOrder(committee.length + 1);
+                    setShowModal(true);
+                  }}
+                  className="bg-gold text-[#0f2d5c] px-4 py-2 rounded-lg font-bold shadow-md hover:bg-gold/90 transition-all text-sm whitespace-nowrap"
+                >
+                  + Add Member
+                </button>
+              )}
+            </div>
             <motion.div 
               initial={{ scaleX: 0 }}
               animate={{ scaleX: 1 }}
@@ -64,7 +165,7 @@ const CriminalJusticeCentre = () => {
               </div>
             </motion.div>
 
-            {/* Verticals / Area of Focus (Enhanced Layout) */}
+            {/* Verticals / Area of Focus */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -106,21 +207,41 @@ const CriminalJusticeCentre = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y text-muted-foreground font-medium">
-                    <tr>
-                      <td className="px-6 py-4 font-bold text-[#0f2d5c] bg-secondary/20">Honorary Chair Person</td>
-                      <td className="px-6 py-4">Dr. Soma B</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 font-bold text-[#0f2d5c] bg-secondary/20">Faculty Member</td>
-                      <td className="px-6 py-4">Dr. Rifat Khan</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 font-bold text-[#0f2d5c] bg-secondary/20" rowSpan={2}>Members</td>
-                      <td className="px-6 py-4">Dr. V. Sunitha</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4">Ms. Sherley Hepsiba D</td>
-                    </tr>
+                    {committee.map((member) => (
+                      <tr key={member.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-6 py-4 font-bold text-[#0f2d5c] bg-secondary/10 whitespace-nowrap">
+                          {member.role}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center justify-between">
+                            <span>{member.name}</span>
+                            {token && (
+                              <div className="flex gap-4 text-xs font-bold uppercase tracking-wider">
+                                <button 
+                                  onClick={() => openEdit(member)}
+                                  className="text-gold hover:text-gold/80 transition-colors"
+                                >
+                                  Edit
+                                </button>
+                                <button 
+                                  onClick={() => handleDelete(member.id)}
+                                  className="text-red-500 hover:text-red-600 transition-colors"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {committee.length === 0 && (
+                      <tr>
+                        <td colSpan={2} className="px-6 py-10 text-center italic text-muted-foreground">
+                          No committee members found in database.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -130,6 +251,76 @@ const CriminalJusticeCentre = () => {
         </section>
       </main>
       <Footer />
+
+      {/* Admin Modal */}
+      <AnimatePresence>
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl w-full max-w-md p-8 shadow-2xl space-y-6"
+            >
+              <div className="flex items-center justify-between border-b pb-4">
+                <h2 className="font-serif text-xl font-bold text-[#0f2d5c]">
+                  {editItem ? "Edit Member" : "Add Member"}
+                </h2>
+                <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-[#0f2d5c]">Role</label>
+                  <input
+                    className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                    placeholder="e.g. Honorary Chair Person"
+                    value={formRole}
+                    onChange={(e) => setFormRole(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-[#0f2d5c]">Name</label>
+                  <input
+                    className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                    placeholder="Full Name"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-[#0f2d5c]">Display Order</label>
+                  <input
+                    type="number"
+                    className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                    value={formOrder}
+                    onChange={(e) => setFormOrder(Number(e.target.value))}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-4 pt-4 border-t">
+                <button 
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="bg-[#0f2d5c] text-white px-8 py-3 rounded-lg font-bold shadow-md hover:bg-[#1a3a6b] transition-all"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

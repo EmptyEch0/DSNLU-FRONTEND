@@ -1,10 +1,96 @@
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { ChevronRight, Target, Users, Lightbulb, ShieldCheck, Scale, Microscope, BookOpen, Handshake, GraduationCap } from "lucide-react";
+import { ChevronRight, Target, Users, Lightbulb, ShieldCheck, Scale, Microscope, BookOpen, Handshake, GraduationCap, X } from "lucide-react";
 import { Link } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useState } from "react";
+import { useAdmin } from "@/context/AdminContext";
+
+const API = import.meta.env.VITE_API_URL;
 
 const CIPRAbout = () => {
+  const { token } = useAdmin();
+
+  const [committee, setCommittee] = useState<any[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+
+  const [formRole, setFormRole] = useState("");
+  const [formName, setFormName] = useState("");
+  const [formOrder, setFormOrder] = useState(1);
+
+  const fetchCommittee = async () => {
+    try {
+      const res = await fetch(`${API}/api/centres/cipr/committee`);
+      const data = await res.json();
+      setCommittee(data);
+    } catch (error) {
+      console.error("Error fetching CIPR committee:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchCommittee();
+  }, []);
+
+  const openEdit = (item: any) => {
+    setEditItem(item);
+    setFormRole(item.role);
+    setFormName(item.name);
+    setFormOrder(item.display_order);
+    setShowModal(true);
+  };
+
+  const handleSave = async () => {
+    const payload = {
+      role: formRole,
+      name: formName,
+      display_order: formOrder,
+    };
+
+    try {
+      if (editItem) {
+        await fetch(`${API}/api/admin/cipr/committee/${editItem.id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await fetch(`${API}/api/admin/cipr/committee`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      setShowModal(false);
+      fetchCommittee();
+    } catch (error) {
+      console.error("Error saving CIPR committee member:", error);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete member?")) return;
+
+    try {
+      await fetch(`${API}/api/admin/cipr/committee/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      fetchCommittee();
+    } catch (error) {
+      console.error("Error deleting CIPR committee member:", error);
+    }
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
@@ -25,8 +111,8 @@ const CIPRAbout = () => {
           <div className="absolute inset-0 opacity-10 bg-[url('https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&q=80')] bg-cover bg-center" />
           <div className="container relative z-10 text-center">
             <motion.h1 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
               className="font-serif text-3xl font-bold text-white md:text-5xl lg:text-5xl"
             >
               CENTRE FOR INTELLECTUAL PROPERTY RIGHTS & TECHNOLOGY (CIPR&T)
@@ -265,9 +351,25 @@ const CIPRAbout = () => {
               viewport={{ once: true }}
               className="space-y-8"
             >
-              <h2 className="font-serif text-3xl font-bold text-[#0f2d5c] border-l-4 border-gold pl-6 uppercase tracking-wider">
-                Committee
-              </h2>
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-3xl font-bold text-[#0f2d5c] border-l-4 border-gold pl-6 uppercase tracking-wider">
+                  Committee
+                </h2>
+                {token && (
+                  <button
+                    onClick={() => {
+                      setEditItem(null);
+                      setFormRole("");
+                      setFormName("");
+                      setFormOrder(committee.length + 1);
+                      setShowModal(true);
+                    }}
+                    className="bg-gold text-[#0f2d5c] px-4 py-2 rounded-lg font-bold shadow-md hover:bg-gold/90 transition-all flex items-center gap-2"
+                  >
+                    + Add Member
+                  </button>
+                )}
+              </div>
               <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -277,23 +379,40 @@ const CIPRAbout = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y text-muted-foreground">
-                    <tr>
-                      <td className="px-6 py-4 font-bold text-[#0f2d5c] bg-secondary/20">Honorary Chair Person</td>
-                      <td className="px-6 py-4">Dr. Dayananda Murthy C.P.</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 font-bold text-[#0f2d5c] bg-secondary/20" rowSpan={4}>Faculty Members</td>
-                      <td className="px-6 py-4">Dr. P. Jogi Naidu</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4">Dr. B. Neelima</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4">Ms. Sherley Hepsiba D</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4">Dr. Kiran Kumari</td>
-                    </tr>
+                    {committee.map((member) => (
+                      <tr key={member.id} className="hover:bg-secondary/5 transition-colors group">
+                        <td className="px-6 py-4 font-bold text-[#0f2d5c] bg-secondary/20 w-1/3">
+                          {member.role}
+                        </td>
+                        <td className="px-6 py-4 relative">
+                          <span className="font-medium text-foreground">{member.name}</span>
+
+                          {token && (
+                            <div className="flex gap-3 mt-2 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button 
+                                onClick={() => openEdit(member)}
+                                className="text-blue-600 hover:text-blue-800 font-bold"
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                onClick={() => handleDelete(member.id)}
+                                className="text-red-600 hover:text-red-800 font-bold"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {committee.length === 0 && (
+                      <tr>
+                        <td colSpan={2} className="px-6 py-12 text-center italic text-muted-foreground">
+                          No committee members found.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -303,6 +422,77 @@ const CIPRAbout = () => {
         </section>
       </main>
       <Footer />
+
+      {/* Admin Modal */}
+      <AnimatePresence>
+        {showModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl w-full max-w-md p-8 shadow-2xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <h2 className="font-serif text-xl font-bold text-[#0f2d5c]">
+                  {editItem ? "Edit Member" : "Add Member"}
+                </h2>
+                <button onClick={() => setShowModal(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-[#0f2d5c]">Role</label>
+                  <input
+                    className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                    placeholder="e.g. Honorary Chair Person"
+                    value={formRole}
+                    onChange={(e) => setFormRole(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-[#0f2d5c]">Name</label>
+                  <input
+                    className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                    placeholder="e.g. Dr. Jane Doe"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-[#0f2d5c]">Display Order</label>
+                  <input
+                    type="number"
+                    className="w-full border p-3 rounded-lg outline-none focus:border-gold transition-colors"
+                    placeholder="1"
+                    value={formOrder}
+                    onChange={(e) => setFormOrder(Number(e.target.value))}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-4 pt-4">
+                <button 
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSave}
+                  className="bg-[#0f2d5c] text-white px-6 py-2 rounded-lg font-bold shadow-md hover:bg-[#1a3a6b] transition-all"
+                >
+                  Save
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

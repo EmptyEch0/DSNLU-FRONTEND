@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AdminProvider } from "./context/AdminContext";
 import Index from "./pages/Index";
 import ViceChancellor from "./pages/ViceChancellor";
 import AboutDSNLU from "./pages/AboutDSNLU";
@@ -15,6 +16,7 @@ import RTIAct from "./pages/RTIAct";
 import News from "./pages/News";
 import ComplaintsCaste from "./pages/ComplaintsCaste";
 import UGCGrievance from "./pages/UGCGrievance";
+import AntiRagging from "./pages/AntiRagging";
 import AntiRaggingContact from "./pages/AntiRaggingContact";
 import Archives from "./pages/Archives";
 import GeneralCouncil from "./pages/GeneralCouncilPage";
@@ -96,18 +98,33 @@ import EnvironmentCentre from "./pages/EnvironmentCentre";
 import PublicPolicyCentre from "./pages/PublicPolicyCentre";
 import LawLiteratureCentre from "./pages/LawLiteratureCentre";
 import HumanRightsCentre from "./pages/HumanRightsCentre";
+import FashionMediaCentre from "./pages/FashionMediaCentre";
+import BankingFinanceCentre from "./pages/BankingFinanceCentre";
+import SportsLawCentre from "./pages/SportsLawCentre";
+import CTRIALCentre from "./pages/CTRIALCentre";
+import FacultyProfile from "./pages/FacultyProfile";
+import CASLCentre from "./pages/CASLCentre";
+import ICMSMECentre from "./pages/ICMSMECentre";
 import CILADAbout from "./pages/CILADAbout";
 import CILADInitiatives from "./pages/CILADInitiatives";
 import CILADBlog from "./pages/CILADBlog";
 import Faculty from "./pages/Faculty";
 import OfficersStaff from "./pages/OfficersStaff";
+import DynamicPage from "./pages/DynamicPage";
+import AdminPageBuilder from "./pages/AdminPageBuilder";
 import NotFound from "./pages/NotFound";
+import AdminCampusLife from "./pages/AdminCampusLife";
+import AdminVisitingFaculty from "./pages/AdminVisitingFaculty";
+import BALLB from "./pages/BALLB";
+import LLB from "./pages/LLB";
+import LLM from "./pages/LLM";
 
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
+  <AdminProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
@@ -119,9 +136,14 @@ const App = () => (
           <Route path="/planning-board" element={<PlanningBoard />} />
           <Route path="/finance-committee" element={<FinanceCommittee />} />
           <Route path="/infrastructure-committee" element={<InfrastructureCommittee />} />
+          <Route path="/people/professor-emeritus" element={<ProfessorEmeritusListing />} />
+          <Route path="/people/professor-emeritus/:slug" element={<ProfessorEmeritusBio />} />
           <Route path="/people/faculty" element={<Faculty />} />
           <Route path="/people/officers-staff" element={<OfficersStaff />} />
           <Route path="/academics/membership" element={<Membership />} />
+          <Route path="/courses/ba-llb" element={<BALLB />} />
+          <Route path="/courses/llb" element={<LLB />} />
+          <Route path="/courses/llm" element={<LLM />} />
           <Route path="/vice-chancellor" element={<ViceChancellor />} />
           <Route path="/chancellor" element={<Chancellor />} />
           <Route path="/registrar" element={<Registrar />} />
@@ -131,7 +153,7 @@ const App = () => (
           <Route path="/news" element={<News />} />
           <Route path="/compliance-infrastructure/complaints" element={<ComplaintsCaste />} />
           <Route path="/compliance-infrastructure/ugc-grievance" element={<UGCGrievance />} />
-          <Route path="/compliance-infrastructure/anti-ragging" element={<AntiRaggingContact />} />
+          <Route path="/compliance-infrastructure/anti-ragging" element={<AntiRagging />} />
           <Route path="/archives" element={<Archives />} />
           <Route path="/about" element={<AboutDSNLU />} />
           <Route path="/visitor" element={<Visitor />} />
@@ -212,15 +234,28 @@ const App = () => (
           <Route path="/centres/public-policy/about" element={<PublicPolicyCentre />} />
           <Route path="/centres/law-literature/about" element={<LawLiteratureCentre />} />
           <Route path="/centres/human-rights/about" element={<HumanRightsCentre />} />
+          <Route path="/centres/fashion-media/about" element={<FashionMediaCentre />} />
+          <Route path="/centres/banking-finance/about" element={<BankingFinanceCentre />} />
+          <Route path="/centres/sports-law/about" element={<SportsLawCentre />} />
+          <Route path="/centres/c-trial/about" element={<CTRIALCentre />} />
+          <Route path="/centres/cas-l/about" element={<CASLCentre />} />
+          <Route path="/centres/icmsme/about" element={<ICMSMECentre />} />
+          <Route path="/people/faculty/:slug" element={<FacultyProfile />} />
           <Route path="/centres/cilad/about" element={<CILADAbout />} />
           <Route path="/centres/cilad/initiatives" element={<CILADInitiatives />} />
           <Route path="/centres/cilad/blog" element={<CILADBlog />} />
 
+
+          <Route path="/admin/campus-life" element={<AdminCampusLife />} />
+          <Route path="/admin/visiting-faculty" element={<AdminVisitingFaculty />} />
+          <Route path="/pages/:slug" element={<DynamicPage />} />
+          <Route path="/admin/page-builder" element={<AdminPageBuilder />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
-  </QueryClientProvider>
+    </QueryClientProvider>
+  </AdminProvider>
 );
 
 export default App;

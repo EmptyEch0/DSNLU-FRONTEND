@@ -1,10 +1,83 @@
+import { useEffect, useState } from "react";
+import { useAdmin } from "@/context/AdminContext";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ChevronRight, Target, Users, BookOpen, Quote } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 
+const API = import.meta.env.VITE_API_URL;
+
+interface CommitteeMember {
+  id: number;
+  role: string;
+  name: string;
+}
+
 const CLRAbout = () => {
+  const { token } = useAdmin();
+
+  const [committee, setCommittee] = useState<CommitteeMember[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState<CommitteeMember | null>(null);
+
+  const [formRole, setFormRole] = useState("");
+  const [formName, setFormName] = useState("");
+
+  const fetchCommittee = async () => {
+    const res = await fetch(`${API}/api/centres/clr`);
+    const data = await res.json();
+    setCommittee(data.committee);
+  };
+
+  useEffect(() => {
+    fetchCommittee();
+  }, []);
+
+  const handleSave = async () => {
+    if (editItem) {
+      await fetch(`${API}/api/admin/centre-committee/${editItem.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          role: formRole,
+          name: formName,
+        }),
+      });
+    } else {
+      await fetch(`${API}/api/admin/centre-committee`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          centre_slug: "clr",
+          role: formRole,
+          name: formName,
+        }),
+      });
+    }
+
+    setShowModal(false);
+    setEditItem(null);
+    fetchCommittee();
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this member?")) return;
+
+    await fetch(`${API}/api/admin/centre-committee/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    fetchCommittee();
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
@@ -99,9 +172,24 @@ const CLRAbout = () => {
               viewport={{ once: true }}
               className="space-y-8"
             >
-              <h2 className="font-serif text-3xl font-bold text-[#0f2d5c] border-l-4 border-gold pl-6">
-                Committee
-              </h2>
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="font-serif text-3xl font-bold text-[#0f2d5c] border-l-4 border-gold pl-6">
+                  Committee
+                </h2>
+                {token && (
+                  <button
+                    onClick={() => {
+                      setEditItem(null);
+                      setFormRole("");
+                      setFormName("");
+                      setShowModal(true);
+                    }}
+                    className="bg-gold text-[#0f2d5c] px-4 py-2 rounded font-bold transition-all hover:bg-gold/90 shadow-sm"
+                  >
+                    + Add Member
+                  </button>
+                )}
+              </div>
               <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
                 <table className="w-full text-left border-collapse">
                   <thead>
@@ -111,24 +199,41 @@ const CLRAbout = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y text-muted-foreground">
-                    <tr>
-                      <td className="px-6 py-4 font-medium text-foreground bg-secondary/10">Honorary Chair Person</td>
-                      <td className="px-6 py-4">Dr. P. Jogi Naidu</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 font-medium text-foreground bg-secondary/10">Faculty Member</td>
-                      <td className="px-6 py-4">Dr. R. Bharat Kumar</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4 font-medium text-foreground bg-secondary/10" rowSpan={3}>Members</td>
-                      <td className="px-6 py-4">Dr. P. Bhuvaneswari</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4">Dr. R. Deepthi</td>
-                    </tr>
-                    <tr>
-                      <td className="px-6 py-4">Ms. Gali Parivartana</td>
-                    </tr>
+                    {committee.map((member) => (
+                      <tr key={member.id} className="hover:bg-secondary/5 transition-colors">
+                        <td className="px-6 py-4 font-medium text-foreground bg-secondary/10">
+                          {member.role}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex justify-between items-center">
+                            <span>{member.name}</span>
+
+                            {token && (
+                              <div className="flex gap-2">
+                                <button
+                                  className="p-1 px-2 border rounded hover:bg-gold/10 text-gold transition-colors"
+                                  onClick={() => {
+                                    setEditItem(member);
+                                    setFormRole(member.role);
+                                    setFormName(member.name);
+                                    setShowModal(true);
+                                  }}
+                                >
+                                  ✏️
+                                </button>
+
+                                <button
+                                  className="p-1 px-2 border rounded hover:bg-red-50 text-red-500 transition-colors"
+                                  onClick={() => handleDelete(member.id)}
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -138,6 +243,58 @@ const CLRAbout = () => {
         </section>
       </main>
       <Footer />
+
+      {/* Modal UI */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white p-8 rounded-2xl w-full max-w-md space-y-6 shadow-2xl"
+          >
+            <h2 className="text-2xl font-serif font-bold text-[#0f2d5c]">
+              {editItem ? "Edit Member" : "Add Member"}
+            </h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground block mb-1">Role</label>
+                <input
+                  className="w-full border rounded-lg p-3 outline-none focus:border-gold transition-colors"
+                  value={formRole}
+                  onChange={(e) => setFormRole(e.target.value)}
+                  placeholder="e.g. Faculty Member"
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium text-muted-foreground block mb-1">Name</label>
+                <input
+                  className="w-full border rounded-lg p-3 outline-none focus:border-gold transition-colors"
+                  value={formName}
+                  onChange={(e) => setFormName(e.target.value)}
+                  placeholder="e.g. Dr. Jane Doe"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4">
+              <button 
+                onClick={() => setShowModal(false)}
+                className="px-4 py-2 text-muted-foreground hover:text-foreground transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                className="bg-[#0f2d5c] text-white px-6 py-2 rounded-lg font-bold transition-all hover:bg-[#1a3a6b] shadow-md"
+              >
+                Save
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

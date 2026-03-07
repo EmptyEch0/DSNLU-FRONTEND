@@ -10,80 +10,176 @@ import {
   FileText, 
   GraduationCap,
   Calendar,
-  ExternalLink
+  ExternalLink,
+  Pencil,
+  Trash2,
+  Plus
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion, Variants } from "framer-motion";
 import { cn } from "@/lib/utils";
 
+import { useEffect, useState } from "react";
+import { useAdmin } from "@/context/AdminContext";
+import { toast } from "sonner";
+
+const API = import.meta.env.VITE_API_URL;
+
+interface PlacementMember {
+  id: number;
+  page_id: number;
+  name: string;
+  role: string;
+  email: string;
+  phone: string;
+  committee_type: string;
+  display_order: number;
+}
+
+interface PlacementSection {
+  id: number;
+  page_id: number;
+  section_key: string;
+  title: string;
+  description: string;
+  display_order: number;
+}
+
+interface PlacementData {
+  page: {
+    id: number;
+    title: string;
+    slug: string;
+  };
+  sections: PlacementSection[];
+  members: PlacementMember[];
+}
+
 const PlacementInternship = () => {
-  const rccFaculty = [
-    { name: "Dr. Dayananda Murthy C.P.", designation: "Convener" },
-    { name: "Dr. P. Jogi Naidu", designation: "Member" },
-    { name: "Dr. R. Bharat Kumar", designation: "Member" },
-    { name: "Dr. B. Neelima", designation: "Member" },
-    { name: "Dr. K. Sudha", designation: "Member" },
-    { name: "Dr. A. Nageswara Rao", designation: "Member" },
-    { name: "Dr. N. Bhagya Lakshmi", designation: "Member" },
-    { name: "Mr. M. Naresh Kumar", designation: "Member" },
-  ];
+  const [data, setData] = useState<PlacementData | null>(null);
+  const { token } = useAdmin();
+  const [modal, setModal] = useState<
+    | { type: "editSection"; data: PlacementSection }
+    | { type: "addMember"; committee: string }
+    | { type: "editMember"; data: PlacementMember }
+    | null
+  >(null);
 
-  const rccStudents = [
-    { 
-      role: "Student Convenor", 
-      name: "Mr. VISWANADHAM VALLURI", 
-      email: "vvrkcs@dsnlu.ac.in", 
-      phone: "+91 89199 71228" 
-    },
-    { 
-      role: "Student Co-Convenor", 
-      name: "Ms. CHHAVI SINGHAL", 
-      email: "chhavisinghal@dsnlu.ac.in", 
-      phone: "+91 8815514923" 
-    }
-  ];
+  const [formData, setFormData] = useState<Partial<PlacementMember> & { description?: string }>({});
 
-  const iccContacts = [
-    {
-      role: "Placement Officer",
-      name: "Mr. M. Naresh Kumar",
-      email: "nareshmadiki@dsnlu.ac.in",
-      phone: "+91-9866592269"
-    },
-    {
-      role: "Student Convenor",
-      name: "Ms. Urvashi Ojha",
-      email: "urvashiojha@dsnlu.ac.in",
-      phone: "+91 9508397280"
-    },
-    {
-      role: "Student Co-Convenor",
-      name: "Mr. Siddhi Vinayak",
-      email: "siddhivinayak@dsnlu.ac.in",
-      phone: "+91 8084267783"
+  const fetchData = async () => {
+    try {
+      const res = await fetch(`${API}/api/placement`);
+      const resData = await res.json();
+      console.log("FULL API RESPONSE:", JSON.stringify(resData, null, 2));
+      setData(resData);
+    } catch (err) {
+      console.error(err);
     }
-  ];
+  };
 
-  const iccFacultySection = [
-    {
-      role: "Faculty Convener",
-      name: "Dr. Dayananda Murthy C.P.",
-      email: "dmurthy@dsnlu.ac.in",
-      phone: "+91 9393719745"
-    },
-    {
-      role: "Faculty Member",
-      name: "Dr. R. Bharat Kumar",
-      email: "rbharat87@dsnlu.ac.in",
-      phone: "+91 8500056969"
-    },
-    {
-      role: "Faculty Member",
-      name: "Dr. Neelima Boghadi",
-      email: "neelimaboghadi@dsnlu.ac.in",
-      phone: "+91 7207357989"
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const authHeaders = () => ({
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  });
+
+  const saveSection = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (modal?.type !== "editSection") return;
+
+    try {
+      const res = await fetch(
+        `${API}/api/admin/placement/section/${modal.data.id}`,
+        {
+          method: "PUT",
+          headers: authHeaders(),
+          body: JSON.stringify({ description: formData.description }),
+        }
+      );
+
+      if (res.ok) {
+        toast.success("Updated!");
+        setModal(null);
+        fetchData();
+      }
+    } catch {
+      toast.error("Error updating.");
     }
-  ];
+  };
+
+  const saveMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const isEdit = modal?.type === "editMember";
+    
+    // For new members, we need the page_id
+    const memberData = isEdit ? formData : { ...formData, page_id: data?.page.id };
+
+    const url = isEdit
+      ? `${API}/api/admin/placement/member/${modal.data.id}`
+      : `${API}/api/admin/placement/member`;
+
+    const method = isEdit ? "PUT" : "POST";
+
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: authHeaders(),
+        body: JSON.stringify(memberData),
+      });
+
+      if (res.ok) {
+        toast.success("Saved!");
+        setModal(null);
+        fetchData();
+      }
+    } catch {
+      toast.error("Error saving.");
+    }
+  };
+
+  const deleteMember = async (id: number) => {
+    if (!confirm("Delete this member?")) return;
+
+    try {
+      const res = await fetch(
+        `${API}/api/admin/placement/member/${id}`,
+        { method: "DELETE", headers: authHeaders() }
+      );
+
+      if (res.ok) {
+        toast.success("Deleted!");
+        fetchData();
+      }
+    } catch {
+      toast.error("Error deleting.");
+    }
+  };
+
+  const rccFaculty = data?.members?.filter(
+    (m: PlacementMember) => m.committee_type?.trim().toLowerCase() === "rcc_faculty"
+  ) || [];
+
+
+  const iccContacts = data?.members?.filter(
+    (m: PlacementMember) => m.committee_type?.trim().toLowerCase() === "icc_contacts"
+  ) || [];
+
+  const iccFacultySection = data?.members?.filter(
+    (m: PlacementMember) => m.committee_type?.trim().toLowerCase() === "icc_faculty"
+  ) || [];
+
+  const rccSection = data?.sections?.find(
+    (s: PlacementSection) => s.section_key === "rcc"
+  );
+
+  const iccSection = data?.sections?.find(
+    (s: PlacementSection) => s.section_key === "icc"
+  );
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -146,80 +242,87 @@ const PlacementInternship = () => {
 
         {/* Section 1: RCC */}
         <section className="py-20 bg-secondary/10">
-          <div className="container">
+          <div className="container space-y-16">
+            
+            {/* RCC Header + Content */}
             <motion.div
               variants={containerVariants}
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true }}
-              className="space-y-16"
             >
-              <div>
-                <motion.h2 
+              <div className="flex items-center justify-between gap-4 mb-8">
+                <motion.h2
                   variants={itemVariants}
-                  className="font-serif text-3xl font-bold text-navy mb-8 relative inline-block after:content-[''] after:absolute after:-bottom-2 after:left-0 after:h-1 after:w-16 after:bg-gold after:rounded-full"
+                  className="font-serif text-3xl font-bold text-navy relative inline-block after:content-[''] after:absolute after:-bottom-2 after:left-0 after:h-1 after:w-16 after:bg-gold after:rounded-full"
                 >
                   Recruitment Coordination Committee (RCC)
                 </motion.h2>
-                <div className="grid gap-12 lg:grid-cols-2 items-start">
-                  <motion.div variants={itemVariants} className="space-y-6">
-                    <div className="rounded-3xl border bg-card p-8 shadow-sm hover:shadow-md transition-all duration-300">
-                      <p className="text-foreground leading-relaxed text-lg">
-                        The Recruitment Coordination Committee (RCC) of Damodaram Sanjivayya National Law University, Visakhapatnam, is the designated body responsible for facilitating the recruitment process for the graduating batch.
-                      </p>
-                      <p className="text-foreground leading-relaxed mt-4 text-lg">
-                        As a student-run organization, the committee helps students reach their full potential through various projects. The RCC ensures smooth interaction between recruiting organizations and aspiring legal professionals and works towards securing premier opportunities for emerging legal talents.
-                      </p>
-                      <p className="text-foreground leading-relaxed mt-4 text-lg">
-                        The committee organizes mock interviews, CV drafting sessions, skill-training workshops, mentorship programs, and networking events to prepare students for successful careers.
-                      </p>
-                    </div>
-                  </motion.div>
 
-                  <motion.div variants={itemVariants}>
-                    <div className="rounded-3xl border bg-card overflow-hidden shadow-sm">
-                      <div className="bg-navy px-6 py-4">
-                        <h3 className="text-white font-bold flex items-center gap-2">
-                          <Users className="h-5 w-5 text-gold" />
-                          Internship & Placements Committee (Faculty)
-                        </h3>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                          <thead>
-                            <tr className="border-b bg-muted/30">
-                              <th className="px-6 py-4 text-sm font-bold text-navy uppercase tracking-wider">Name</th>
-                              <th className="px-6 py-4 text-sm font-bold text-navy uppercase tracking-wider">Designation</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y">
-                            {rccFaculty.map((member, idx) => (
-                              <tr key={idx} className="hover:bg-gold/5 transition-colors group">
-                                <td className="px-6 py-4 text-foreground font-medium group-hover:text-navy">{member.name}</td>
-                                <td className="px-6 py-4 text-muted-foreground">{member.designation}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </motion.div>
-                </div>
+                {token && (
+                  <button
+                    onClick={() => {
+                      if (rccSection) {
+                        setModal({ type: "editSection", data: rccSection });
+                        setFormData({ description: rccSection.description });
+                      }
+                    }}
+                    className="p-2 hover:bg-gold/10 text-gold rounded-full transition-colors bg-navy"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                )}
               </div>
 
-              {/* Student Office Bearers */}
-              <div>
-                <motion.h3 variants={itemVariants} className="text-xl font-bold text-navy mb-8 flex items-center gap-3">
-                  <div className="h-8 w-1 bg-gold rounded-full" />
-                  Student Office Bearers
-                </motion.h3>
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-2">
-                  {rccStudents.map((student, idx) => (
-                    <ContactCard key={idx} contact={student} variants={itemVariants} />
-                  ))}
-                </div>
+              <div className="grid gap-12 lg:grid-cols-2 items-start">
+                <motion.div variants={itemVariants} className="space-y-6">
+                  <div className="rounded-3xl border bg-card p-8 shadow-sm hover:shadow-md transition-all duration-300">
+                    <div
+                      className="text-foreground leading-relaxed text-lg"
+                      dangerouslySetInnerHTML={{ __html: rccSection?.description ?? "" }}
+                    />
+                  </div>
+                </motion.div>
+
+                <motion.div variants={itemVariants}>
+                  <div className="rounded-3xl border bg-card overflow-hidden shadow-sm">
+                    <div className="bg-navy px-6 py-4">
+                      <h3 className="text-white font-bold flex items-center gap-2">
+                        <Users className="h-5 w-5 text-gold" />
+                        Internship & Placements Committee (Faculty)
+                      </h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b bg-muted/30">
+                            <th className="px-6 py-4 text-sm font-bold text-navy uppercase tracking-wider">Name</th>
+                            <th className="px-6 py-4 text-sm font-bold text-navy uppercase tracking-wider">Designation</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {rccFaculty.length === 0 && (
+                            <tr>
+                              <td colSpan={2} className="px-6 py-8 text-center text-muted-foreground italic">
+                                No faculty members added yet.
+                              </td>
+                            </tr>
+                          )}
+                          {rccFaculty.map((member, idx) => (
+                            <tr key={idx} className="hover:bg-gold/5 transition-colors group">
+                              <td className="px-6 py-4 text-foreground font-medium group-hover:text-navy">{member.name}</td>
+                              <td className="px-6 py-4 text-muted-foreground">{member.role}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </motion.div>
               </div>
             </motion.div>
+
+
           </div>
         </section>
 
@@ -234,29 +337,76 @@ const PlacementInternship = () => {
               className="space-y-16"
             >
               <div>
-                <motion.h2 
-                  variants={itemVariants}
-                  className="font-serif text-3xl font-bold text-navy mb-8 relative inline-block after:content-[''] after:absolute after:-bottom-2 after:left-0 after:h-1 after:w-16 after:bg-gold after:rounded-full"
-                >
-                  Internship Co-ordination Committee (ICC)
-                </motion.h2>
+                <div className="flex items-center justify-between gap-4 mb-8">
+                  <motion.h2 
+                    variants={itemVariants}
+                    className="font-serif text-3xl font-bold text-navy relative inline-block after:content-[''] after:absolute after:-bottom-2 after:left-0 after:h-1 after:w-16 after:bg-gold after:rounded-full"
+                  >
+                    Internship Co-ordination Committee (ICC)
+                  </motion.h2>
+
+                  {token && (
+                    <button
+                      onClick={() => {
+                        if (iccSection) {
+                          setModal({ type: "editSection", data: iccSection });
+                          setFormData({ description: iccSection.description });
+                        }
+                      }}
+                      className="p-2 hover:bg-gold/10 text-gold rounded-full transition-colors bg-navy"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
                 <motion.div variants={itemVariants} className="max-w-4xl rounded-3xl border-l-4 border-l-gold bg-card p-8 shadow-sm">
-                  <p className="text-foreground leading-relaxed text-lg">
-                    DSNLU provides two months of summer and one month of winter internship breaks during each academic year. The ICC facilitates students' professional networking and ensures practical exposure with advocates, law firms, companies, judicial officials, government and non-government organizations, and research institutions.
-                  </p>
+                  <div 
+                    className="text-foreground leading-relaxed text-lg"
+                    dangerouslySetInnerHTML={{ __html: iccSection?.description }}
+                  />
                 </motion.div>
               </div>
 
               {/* ICC Contacts */}
               <div className="grid gap-8 lg:grid-cols-3">
                 <div className="lg:col-span-2">
-                  <motion.h3 variants={itemVariants} className="text-xl font-bold text-navy mb-8 flex items-center gap-3">
-                    <div className="h-8 w-1 bg-gold rounded-full" />
-                    Committee Contacts
-                  </motion.h3>
+                  <div className="flex items-center justify-between gap-4 mb-8">
+                    <motion.h3 variants={itemVariants} className="text-xl font-bold text-navy flex items-center gap-3">
+                      <div className="h-8 w-1 bg-gold rounded-full" />
+                      Committee Contacts
+                    </motion.h3>
+
+                    {token && (
+                      <button
+                        onClick={() => {
+                          setModal({ type: "addMember", committee: "icc_contacts" });
+                          setFormData({ committee_type: "icc_contacts" });
+                        }}
+                        className="px-4 py-2 bg-navy text-gold rounded-full flex items-center gap-2 font-bold text-xs"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add Member
+                      </button>
+                    )}
+                  </div>
                   <div className="grid gap-6 md:grid-cols-2">
+                    {iccContacts.length === 0 && (
+                      <p className="text-muted-foreground italic col-span-full py-4">
+                        No committee contacts added yet.
+                      </p>
+                    )}
                     {iccContacts.map((contact, idx) => (
-                      <ContactCard key={idx} contact={contact} variants={itemVariants} />
+                      <ContactCard 
+                        key={idx} 
+                        contact={contact} 
+                        variants={itemVariants}
+                        isAdmin={!!token}
+                        onEdit={() => {
+                          setModal({ type: "editMember", data: contact });
+                          setFormData(contact);
+                        }}
+                        onDelete={() => deleteMember(contact.id)}
+                      />
                     ))}
                   </div>
                 </div>
@@ -267,8 +417,24 @@ const PlacementInternship = () => {
                     Faculty Committee
                   </motion.h3>
                   <div className="space-y-6">
+                    {iccFacultySection.length === 0 && (
+                      <p className="text-muted-foreground italic py-2">
+                        No faculty members added yet.
+                      </p>
+                    )}
                     {iccFacultySection.map((faculty, idx) => (
-                      <ContactCard key={idx} contact={faculty} variants={itemVariants} compact />
+                      <ContactCard 
+                        key={idx} 
+                        contact={faculty} 
+                        variants={itemVariants} 
+                        compact
+                        isAdmin={!!token}
+                        onEdit={() => {
+                          setModal({ type: "editMember", data: faculty });
+                          setFormData(faculty);
+                        }}
+                        onDelete={() => deleteMember(faculty.id)}
+                      />
                     ))}
                   </div>
                 </div>
@@ -278,6 +444,112 @@ const PlacementInternship = () => {
         </section>
       </main>
       <Footer />
+      
+      {/* Modals */}
+      {modal?.type === "editSection" && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white p-8 rounded-3xl w-full max-w-2xl space-y-6 shadow-2xl"
+          >
+            <div>
+              <h2 className="text-2xl font-bold text-navy">Edit Section Content</h2>
+              <p className="text-muted-foreground text-sm mt-1">Updates will be visible after saving.</p>
+            </div>
+            <form onSubmit={saveSection} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-navy uppercase tracking-wider">Description (HTML Supported)</label>
+                <textarea
+                  className="w-full border rounded-2xl p-4 min-h-[300px] focus:ring-2 focus:ring-gold focus:border-transparent outline-none transition-all"
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button type="button" onClick={() => setModal(null)} className="px-6 py-2.5 border rounded-full font-bold text-sm hover:bg-secondary transition-colors">Cancel</button>
+                <button type="submit" className="px-8 py-2.5 bg-navy text-gold rounded-full font-bold text-sm shadow-lg hover:shadow-gold/20 transition-all">Save Changes</button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
+
+      {(modal?.type === "addMember" || modal?.type === "editMember") && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white p-8 rounded-3xl w-full max-w-lg space-y-6 shadow-2xl"
+          >
+            <div>
+              <h2 className="text-2xl font-bold text-navy">
+                {modal.type === "editMember" ? "Edit Member" : "Add New Member"}
+              </h2>
+              <p className="text-muted-foreground text-sm mt-1">
+                {modal.type === "addMember" ? "Adding to: " + modal.committee.replace('_', ' ').toUpperCase() : "Modify member details below."}
+              </p>
+            </div>
+            <form onSubmit={saveMember} className="space-y-4">
+              <div className="grid gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-navy uppercase tracking-widest ml-1">Member Name</label>
+                  <input
+                    className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-gold/20 focus:border-gold transition-all"
+                    placeholder="Enter name"
+                    value={formData.name || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, name: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-navy uppercase tracking-widest ml-1">Role / Designation</label>
+                  <input
+                    className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-gold/20 focus:border-gold transition-all"
+                    placeholder="Enter role (e.g. Student Convenor)"
+                    value={formData.role || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, role: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-navy uppercase tracking-widest ml-1">Email Address</label>
+                  <input
+                    className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-gold/20 focus:border-gold transition-all"
+                    placeholder="example@dsnlu.ac.in"
+                    type="email"
+                    value={formData.email || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, email: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-navy uppercase tracking-widest ml-1">Phone Number</label>
+                  <input
+                    className="w-full border rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-gold/20 focus:border-gold transition-all"
+                    placeholder="+91 XXXXX XXXXX"
+                    value={formData.phone || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phone: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-6 border-t mt-4">
+                <button type="button" onClick={() => setModal(null)} className="px-6 py-2.5 border rounded-full font-bold text-sm hover:bg-secondary transition-colors">Cancel</button>
+                <button type="submit" className="px-8 py-2.5 bg-navy text-gold rounded-full font-bold text-sm shadow-lg hover:shadow-gold/20 transition-all">
+                  {modal.type === "editMember" ? "Update Details" : "Add Member"}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };
@@ -291,7 +563,21 @@ interface Contact {
 }
 
 
-const ContactCard = ({ contact, variants, compact = false }: { contact: Contact; variants: Variants; compact?: boolean }) => {
+const ContactCard = ({ 
+  contact, 
+  variants, 
+  compact = false,
+  isAdmin = false,
+  onEdit,
+  onDelete
+}: { 
+  contact: PlacementMember; 
+  variants: Variants; 
+  compact?: boolean;
+  isAdmin?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) => {
   return (
     <motion.div 
       variants={variants}
@@ -301,6 +587,32 @@ const ContactCard = ({ contact, variants, compact = false }: { contact: Contact;
       )}
     >
       <div className="absolute top-0 left-0 h-1 w-0 bg-gold transition-all duration-500 group-hover:w-full" />
+      
+      {isAdmin && (
+        <div className="absolute top-4 right-4 flex gap-2 z-10">
+          <button 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onEdit?.();
+            }} 
+            className="p-1.5 bg-background border rounded-lg text-navy hover:text-gold hover:border-gold transition-all shadow-sm"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button 
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDelete?.();
+            }} 
+            className="p-1.5 bg-background border rounded-lg text-red-600 hover:bg-red-50 hover:border-red-200 transition-all shadow-sm"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       <div className="flex items-start gap-4">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gold/5 text-gold transition-colors group-hover:bg-gold group-hover:text-navy">
           <UserCircle className="h-6 w-6" />

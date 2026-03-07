@@ -8,43 +8,21 @@ import {
   Info,
   Scale,
   Award,
-  ScrollText
+  ScrollText,
+  ShieldCheck
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+
+import { ICCHeader } from "@/components/layout/ICCHeader";
 
 const StatutoryCommittees = () => {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Header />
       <main className="flex-1">
-        {/* Breadcrumb */}
-        <div className="border-b bg-secondary/50">
-          <div className="container flex items-center gap-2 py-4 text-sm text-muted-foreground">
-            <Link to="/" className="transition-colors hover:text-gold text-xs sm:text-sm">Home</Link>
-            <ChevronRight className="h-3.5 w-3.5" />
-            <span className="text-foreground text-xs sm:text-sm">Students</span>
-            <ChevronRight className="h-3.5 w-3.5" />
-            <span className="font-medium text-gold uppercase tracking-wider text-[10px] sm:text-[11px]">Statutory Committees</span>
-          </div>
-        </div>
-
-        {/* Hero Section */}
-        <section className="bg-primary py-24 relative overflow-hidden">
-          <div className="absolute inset-0 bg-navy/95 z-0" />
-          <div className="container relative z-10 text-center">
-            <motion.h1 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="font-serif text-4xl md:text-5xl lg:text-6xl font-bold text-white uppercase tracking-wider leading-tight"
-            >
-              Statutory Committees <br />
-              <span className="text-gold">& Centres</span>
-            </motion.h1>
-            <div className="mt-6 h-1 w-24 bg-gold mx-auto rounded-full" />
-          </div>
-        </section>
+        <ICCHeader activeTab="statutory" />
 
         {/* Introduction Section */}
         <section className="py-20 lg:py-32">

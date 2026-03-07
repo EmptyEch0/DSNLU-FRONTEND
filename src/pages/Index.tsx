@@ -1,3 +1,7 @@
+import { useLocation } from "react-router-dom";
+import { useAdmin } from "@/context/AdminContext";
+import { AdminLogin } from "@/components/AdminLogin";
+import { AdminBar } from "@/components/AdminBar";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { HeroSection } from "@/components/sections/HeroSection";
@@ -12,8 +16,18 @@ import { CampusSection } from "@/components/sections/CampusSection";
 import { NotificationTicker } from "@/components/common/NotificationTicker";
 
 const Index = () => {
+  const location = useLocation();
+  const { token } = useAdmin();
+
+  const isAdminRoute = location.search.includes("admin=true");
+
+  if (isAdminRoute && !token) {
+    return <AdminLogin />;
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
+      {token && <AdminBar />}
       <Header />
       <NotificationTicker />
       <main className="flex-1">
