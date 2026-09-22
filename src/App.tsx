@@ -119,7 +119,16 @@ import BALLB from "./pages/BALLB";
 import LLB from "./pages/LLB";
 import LLM from "./pages/LLM";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 mins fresh cache
+      gcTime: 1000 * 60 * 30, // 30 mins GC
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <AdminProvider>

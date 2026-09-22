@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Building2, BookOpen, Scale, Users } from "lucide-react";
+import { Building2, BookOpen, Scale, Users, Plus, Pencil, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import { useAdmin } from "@/context/AdminContext";
+import { OptimizedImage } from "@/components/common/OptimizedImage";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface CampusItem {
   id: number;
@@ -12,7 +14,7 @@ interface CampusItem {
   display_order: number;
 }
 
-const API = import.meta.env.VITE_API_URL;
+const API = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const iconMap: Record<string, any> = {
   BookOpen,
@@ -24,7 +26,7 @@ const iconMap: Record<string, any> = {
 export function CampusSection() {
   const [facilities, setFacilities] = useState<CampusItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const { token } = useAdmin();
+  const { token, isAdminMode } = useAdmin();
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -35,10 +37,21 @@ export function CampusSection() {
   const [formIcon, setFormIcon] = useState("");
 
   const fetchFacilities = async () => {
-    const res = await fetch(`${API}/api/campus-life`);
-    const data = await res.json();
-    setFacilities(data);
-    setLoading(false);
+    try {
+      setLoading(true);
+      const res = await fetch(`${API}/api/campus-life`);
+      if (res.ok) {
+        const data = await res.json();
+        setFacilities(Array.isArray(data) ? data : []);
+      } else {
+        setFacilities([]);
+      }
+    } catch (err) {
+      console.error("Failed to fetch campus life:", err);
+      setFacilities([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -51,7 +64,13 @@ export function CampusSection() {
     await fetch(`${API}/api/campus-life`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ title: formTitle, description: formDesc, image_url: formImage, icon_name: formIcon, display_order: nextOrder }),
+      body: JSON.stringify({
+        title: formTitle,
+        description: formDesc,
+        image_url: formImage,
+        icon_name: formIcon,
+        display_order: nextOrder,
+      }),
     });
     setShowAddModal(false);
     resetForm();
@@ -63,7 +82,13 @@ export function CampusSection() {
     await fetch(`${API}/api/campus-life/${editItem.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ title: formTitle, description: formDesc, image_url: formImage, icon_name: formIcon, display_order: editItem.display_order }),
+      body: JSON.stringify({
+        title: formTitle,
+        description: formDesc,
+        image_url: formImage,
+        icon_name: formIcon,
+        display_order: editItem.display_order,
+      }),
     });
     setEditItem(null);
     resetForm();
@@ -117,24 +142,50 @@ export function CampusSection() {
   };
 
   const resetForm = () => {
-    setFormTitle(""); setFormDesc(""); setFormImage(""); setFormIcon("");
+    setFormTitle("");
+    setFormDesc("");
+    setFormImage("");
+    setFormIcon("");
   };
-
-  if (loading) return null;
 
   // Admin action buttons overlay
   const AdminActions = ({ item }: { item: CampusItem }) => (
-    <div className="absolute top-2 right-2 z-20 flex gap-1">
-      <button onClick={() => openEditModal(item)} title="Edit" className="bg-white/90 p-1.5 rounded shadow hover:bg-gold/20 transition-colors text-sm">✏️</button>
-      <button onClick={() => handleDelete(item.id)} title="Delete" className="bg-white/90 p-1.5 rounded shadow hover:bg-red-50 transition-colors text-sm">🗑️</button>
-      <button onClick={() => moveUp(item.id)} title="Move Up" className="bg-white/90 p-1.5 rounded shadow hover:bg-gold/20 transition-colors text-sm">⬆️</button>
-      <button onClick={() => moveDown(item.id)} title="Move Down" className="bg-white/90 p-1.5 rounded shadow hover:bg-gold/20 transition-colors text-sm">⬇️</button>
+    <div className="absolute top-3 right-3 z-30 flex items-center gap-1.5 bg-navy-dark/90 backdrop-blur-md p-1.5 rounded-lg border border-gold/30 shadow-lg">
+      <button
+        onClick={(e) => { e.stopPropagation(); openEditModal(item); }}
+        title="Edit facility"
+        className="p-1.5 rounded-md hover:bg-gold/20 text-gold transition-colors"
+      >
+        <Pencil className="h-3.5 w-3.5" />
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); handleDelete(item.id); }}
+        title="Delete facility"
+        className="p-1.5 rounded-md hover:bg-red-500/20 text-red-400 transition-colors"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); moveUp(item.id); }}
+        title="Move Up"
+        className="p-1.5 rounded-md hover:bg-white/10 text-white transition-colors"
+      >
+        <ArrowUp className="h-3.5 w-3.5" />
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); moveDown(item.id); }}
+        title="Move Down"
+        className="p-1.5 rounded-md hover:bg-white/10 text-white transition-colors"
+      >
+        <ArrowDown className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 
   return (
-    <section className="bg-background py-20 lg:py-28">
+    <section className="bg-background py-20 lg:py-28 relative">
       <div className="container">
+        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -154,98 +205,165 @@ export function CampusSection() {
         </motion.div>
 
         {/* Admin Add Button */}
-        {token && (
+        {token && isAdminMode && (
           <div className="flex justify-end mb-8">
             <button
-              onClick={() => { setShowAddModal(true); resetForm(); }}
-              className="px-5 py-2.5 bg-navy text-gold rounded-full font-bold text-sm shadow-lg transition-all hover:scale-105 active:scale-95"
+              onClick={() => {
+                setShowAddModal(true);
+                resetForm();
+              }}
+              className="flex items-center gap-2 px-5 py-2.5 bg-navy text-gold rounded-full font-bold text-sm shadow-lg border border-gold/30 transition-all hover:scale-105 active:scale-95"
             >
-              + Add Facility
+              <Plus className="h-4 w-4" /> Add Facility
             </button>
           </div>
         )}
 
-        {/* First 2 with image */}
-        <div className="grid gap-8 md:grid-cols-2">
-          {facilities.slice(0, 2).map((facility, index) => {
-            const Icon = iconMap[facility.icon_name];
-            return (
-              <motion.div
-                key={facility.id}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.15 }}
-                className="group relative overflow-hidden rounded-2xl"
-              >
-                {token && <AdminActions item={facility} />}
-                <div className="aspect-[16/10] overflow-hidden">
-                  <img
-                    src={facility.image_url}
-                    alt={facility.title}
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-navy-dark via-navy-dark/50 to-transparent" />
-                <div className="absolute bottom-0 left-0 right-0 p-8">
-                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gold/20 backdrop-blur-sm">
-                    {Icon && <Icon className="h-6 w-6 text-gold" />}
-                  </div>
-                  <h3 className="mb-2 font-serif text-2xl font-bold text-ivory">
-                    {facility.title}
-                  </h3>
-                  <p className="text-ivory/80">
-                    {facility.description}
-                  </p>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+        {/* Loading Skeleton */}
+        {loading ? (
+          <div className="space-y-8">
+            <div className="grid gap-8 md:grid-cols-2">
+              <Skeleton className="h-72 w-full rounded-2xl" />
+              <Skeleton className="h-72 w-full rounded-2xl" />
+            </div>
+            <div className="grid gap-6 md:grid-cols-2">
+              <Skeleton className="h-32 w-full rounded-xl" />
+              <Skeleton className="h-32 w-full rounded-xl" />
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* First 2 facilities with image cards */}
+            <div className="grid gap-8 md:grid-cols-2">
+              {facilities.slice(0, 2).map((facility, index) => {
+                const Icon = iconMap[facility.icon_name || ""] || Building2;
+                return (
+                  <motion.div
+                    key={facility.id}
+                    initial={{ opacity: 0, y: 30 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: index * 0.15 }}
+                    className="group relative overflow-hidden rounded-2xl border border-border shadow-sm bg-card"
+                  >
+                    {token && isAdminMode && <AdminActions item={facility} />}
+                    <div className="aspect-[16/10] overflow-hidden relative">
+                      <OptimizedImage
+                        src={facility.image_url}
+                        alt={facility.title}
+                        containerClassName="h-full w-full"
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-navy-dark via-navy-dark/60 to-transparent pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 right-0 p-8">
+                      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gold/20 backdrop-blur-sm border border-gold/30">
+                        <Icon className="h-6 w-6 text-gold" />
+                      </div>
+                      <h3 className="mb-2 font-serif text-2xl font-bold text-ivory">
+                        {facility.title}
+                      </h3>
+                      <p className="text-ivory/80 text-sm leading-relaxed">
+                        {facility.description}
+                      </p>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
 
-        {/* Remaining simple cards */}
-        <div className="mt-8 grid gap-6 md:grid-cols-2">
-          {facilities.slice(2).map((facility, index) => {
-            const Icon = iconMap[facility.icon_name];
-            return (
-              <motion.div
-                key={facility.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: index * 0.1 }}
-                className="group relative flex items-start gap-4 rounded-xl border bg-card p-6 transition-all hover:border-gold/30 hover:shadow-md"
-              >
-                {token && <AdminActions item={facility} />}
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                  {Icon && <Icon className="h-7 w-7 text-gold" />}
-                </div>
-                <div>
-                  <h3 className="mb-2 font-serif text-xl font-semibold text-foreground">
-                    {facility.title}
-                  </h3>
-                  <p className="text-muted-foreground">
-                    {facility.description}
-                  </p>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+            {/* Remaining facilities as structured feature cards */}
+            {facilities.length > 2 && (
+              <div className="mt-8 grid gap-6 md:grid-cols-2">
+                {facilities.slice(2).map((facility, index) => {
+                  const Icon = iconMap[facility.icon_name || ""] || Building2;
+                  return (
+                    <motion.div
+                      key={facility.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: index * 0.1 }}
+                      className="group relative flex items-start gap-4 rounded-xl border bg-card p-6 transition-all hover:border-gold/30 hover:shadow-md"
+                    >
+                      {token && isAdminMode && <AdminActions item={facility} />}
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary/10 border border-gold/20">
+                        <Icon className="h-7 w-7 text-gold" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="mb-2 font-serif text-xl font-semibold text-foreground">
+                          {facility.title}
+                        </h3>
+                        <p className="text-muted-foreground text-sm leading-relaxed">
+                          {facility.description}
+                        </p>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Add Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white p-8 rounded-xl w-full max-w-md space-y-4">
-            <h2 className="text-xl font-bold">Add New Facility</h2>
-            <input className="w-full border p-2 rounded" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="Title" />
-            <textarea className="w-full border p-2 rounded" value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="Description" rows={3} />
-            <input className="w-full border p-2 rounded" value={formImage} onChange={(e) => setFormImage(e.target.value)} placeholder="Image URL" />
-            <input className="w-full border p-2 rounded" value={formIcon} onChange={(e) => setFormIcon(e.target.value)} placeholder="Icon (BookOpen, Scale, Building2, Users)" />
-            <div className="flex justify-end gap-4 pt-2">
-              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 border rounded">Cancel</button>
-              <button onClick={handleAdd} className="px-4 py-2 bg-navy text-gold rounded font-bold">Add Facility</button>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-card text-card-foreground border p-6 rounded-2xl w-full max-w-lg space-y-4 shadow-2xl">
+            <h2 className="text-xl font-serif font-bold text-foreground">Add New Facility</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Title</label>
+                <input
+                  className="w-full border bg-background text-foreground p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-gold"
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                  placeholder="e.g. Modern Moot Court"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Description</label>
+                <textarea
+                  className="w-full border bg-background text-foreground p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-gold"
+                  value={formDesc}
+                  onChange={(e) => setFormDesc(e.target.value)}
+                  placeholder="Describe the facility..."
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Image URL</label>
+                <input
+                  className="w-full border bg-background text-foreground p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-gold"
+                  value={formImage}
+                  onChange={(e) => setFormImage(e.target.value)}
+                  placeholder="https://example.com/image.jpg"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Icon (Building2, BookOpen, Scale, Users)</label>
+                <input
+                  className="w-full border bg-background text-foreground p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-gold"
+                  value={formIcon}
+                  onChange={(e) => setFormIcon(e.target.value)}
+                  placeholder="Building2"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAdd}
+                className="px-5 py-2 bg-navy text-gold rounded-lg font-bold text-sm shadow hover:bg-navy-light transition-colors"
+              >
+                Add Facility
+              </button>
             </div>
           </div>
         </div>
@@ -253,16 +371,61 @@ export function CampusSection() {
 
       {/* Edit Modal */}
       {editItem && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white p-8 rounded-xl w-full max-w-md space-y-4">
-            <h2 className="text-xl font-bold">Edit Facility</h2>
-            <input className="w-full border p-2 rounded" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="Title" />
-            <textarea className="w-full border p-2 rounded" value={formDesc} onChange={(e) => setFormDesc(e.target.value)} placeholder="Description" rows={3} />
-            <input className="w-full border p-2 rounded" value={formImage} onChange={(e) => setFormImage(e.target.value)} placeholder="Image URL" />
-            <input className="w-full border p-2 rounded" value={formIcon} onChange={(e) => setFormIcon(e.target.value)} placeholder="Icon (BookOpen, Scale, Building2, Users)" />
-            <div className="flex justify-end gap-4 pt-2">
-              <button onClick={() => setEditItem(null)} className="px-4 py-2 border rounded">Cancel</button>
-              <button onClick={handleEdit} className="px-4 py-2 bg-navy text-gold rounded font-bold">Save Changes</button>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-card text-card-foreground border p-6 rounded-2xl w-full max-w-lg space-y-4 shadow-2xl">
+            <h2 className="text-xl font-serif font-bold text-foreground">Edit Facility</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Title</label>
+                <input
+                  className="w-full border bg-background text-foreground p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-gold"
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                  placeholder="Title"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Description</label>
+                <textarea
+                  className="w-full border bg-background text-foreground p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-gold"
+                  value={formDesc}
+                  onChange={(e) => setFormDesc(e.target.value)}
+                  placeholder="Description"
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Image URL</label>
+                <input
+                  className="w-full border bg-background text-foreground p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-gold"
+                  value={formImage}
+                  onChange={(e) => setFormImage(e.target.value)}
+                  placeholder="Image URL"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground">Icon</label>
+                <input
+                  className="w-full border bg-background text-foreground p-2.5 rounded-lg text-sm focus:ring-2 focus:ring-gold"
+                  value={formIcon}
+                  onChange={(e) => setFormIcon(e.target.value)}
+                  placeholder="Icon"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <button
+                onClick={() => setEditItem(null)}
+                className="px-4 py-2 border rounded-lg text-sm font-medium hover:bg-muted transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEdit}
+                className="px-5 py-2 bg-navy text-gold rounded-lg font-bold text-sm shadow hover:bg-navy-light transition-colors"
+              >
+                Save Changes
+              </button>
             </div>
           </div>
         </div>

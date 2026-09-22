@@ -173,9 +173,9 @@ export function Header() {
             <div className="flex-shrink-0">
               <Link to="/">
                 <img 
-                  src="https://dsnlu.ac.in/storage/2023/11/dsnlulogo0-1.png" 
+                  src="https://dsnlu.ac.in/wp-content/uploads/2022/12/logo.png" 
                   alt="DSNLU Logo Left" 
-                  className="h-[40px] md:h-[75px] w-auto transition-all"
+                  className="h-[45px] md:h-[80px] w-auto object-contain transition-all drop-shadow-md"
                 />
               </Link>
             </div>
@@ -197,9 +197,9 @@ export function Header() {
             <div className="flex-shrink-0 hidden md:block">
               <Link to="/">
                 <img 
-                  src="https://dsnlu.ac.in/storage/2022/12/DSNLU_Logo-1-300x291-1.png" 
+                  src="https://dsnlu.ac.in/wp-content/uploads/2023/11/dsnlulogo0-1.png" 
                   alt="DSNLU Logo Right" 
-                  className="h-[40px] md:h-[75px] w-auto transition-all"
+                  className="h-[45px] md:h-[80px] w-auto object-contain transition-all drop-shadow-md"
                 />
               </Link>
             </div>
